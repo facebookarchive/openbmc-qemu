@@ -1256,6 +1256,321 @@ static void aspeed_machine_fuji_class_init(ObjectClass *oc, void *data)
         aspeed_soc_num_cpus(amc->soc_name);
 };
 
+static void aspeed_machine_minipack_class_init(ObjectClass *oc, void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+    AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
+
+    mc->desc = "Facebook Minipack 100 BMC (ARM1176)";
+    amc->soc_name = "ast2500-a1";
+    amc->hw_strap1 = 0;
+    amc->hw_strap2 = 0;
+    amc->fmc_model = "mx66l1g45g";
+    amc->spi_model = "mx66l1g45g";
+    amc->num_cs = 1;
+    amc->macs_mask = ASPEED_MAC1_ON;
+    amc->uart_default = ASPEED_DEV_UART1;
+    mc->default_ram_size = 1 * GiB;
+    mc->default_cpus = mc->min_cpus = mc->max_cpus =
+        aspeed_soc_num_cpus(amc->soc_name);
+};
+
+static void aspeed_machine_cloudripper_class_init(ObjectClass *oc, void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+    AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
+
+    mc->desc = "Facebook Cloudripper BMC (Cortex-A7)";
+    amc->soc_name = "ast2600-a3";
+    amc->hw_strap1 = 0;
+    amc->hw_strap2 = 0;
+    amc->fmc_model = "mx66l1g45g";
+    amc->spi_model = "mx66l1g45g";
+    amc->num_cs = 2;
+    amc->macs_mask = ASPEED_MAC3_ON;
+    amc->uart_default = ASPEED_DEV_UART1;
+    mc->default_ram_size = 2 * GiB;
+    mc->default_cpus = mc->min_cpus = mc->max_cpus =
+        aspeed_soc_num_cpus(amc->soc_name);
+};
+
+static void aspeed_machine_grandcanyon_class_init(ObjectClass *oc, void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+    AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
+
+    mc->desc = "Facebook GrandCanyon BMC (Cortex-A7)";
+    amc->soc_name = "ast2600-a3";
+    amc->hw_strap1 = 0;
+    amc->hw_strap2 = 0;
+    amc->fmc_model = "mx66l1g45g";
+    amc->spi_model = "mx66l1g45g";
+    amc->num_cs = 2;
+    amc->macs_mask = ASPEED_MAC3_ON;
+    amc->uart_default = ASPEED_DEV_UART5;
+    mc->default_ram_size = 2 * GiB;
+    mc->default_cpus = mc->min_cpus = mc->max_cpus =
+        aspeed_soc_num_cpus(amc->soc_name);
+};
+
+static void aspeed_machine_yosemitev2_class_init(ObjectClass *oc, void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+    AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
+
+    mc->desc = "Facebook Yosemitev2 BMC (ARM1176)";
+    amc->soc_name = "ast2500-a1";
+    amc->hw_strap1 = AST2500_EVB_HW_STRAP1;
+    amc->hw_strap2 = 0;
+    amc->fmc_model = "mx25l25655e";
+    amc->spi_model = "mx25l25655e";
+    amc->num_cs = 1;
+    amc->macs_mask = ASPEED_MAC0_ON;
+    mc->default_ram_size = 512 * MiB;
+    mc->default_cpus = mc->min_cpus = mc->max_cpus =
+        aspeed_soc_num_cpus(amc->soc_name);
+};
+
+static void aspeed_machine_yosemitev3_class_init(ObjectClass *oc, void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+    AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
+
+    mc->desc = "Facebook Yosemitev3 BMC (ARM1176)";
+    amc->soc_name = "ast2500-a1";
+    amc->hw_strap1 = AST2500_EVB_HW_STRAP1;
+    amc->hw_strap2 = 0;
+    amc->fmc_model = "mx66l1g45g";
+    amc->spi_model = "mx66l1g45g";
+    amc->num_cs = 1;
+    amc->macs_mask = ASPEED_MAC0_ON;
+    mc->default_ram_size = 1 * GiB;
+    mc->default_cpus = mc->min_cpus = mc->max_cpus =
+        aspeed_soc_num_cpus(amc->soc_name);
+};
+
+static void aspeed_machine_fbttn_class_init(ObjectClass *oc, void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+    AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
+
+    mc->desc = "Facebook BryceCanyon BMC (ARM1176)";
+    amc->soc_name = "ast2500-a1";
+    amc->hw_strap1 = 0;
+    amc->hw_strap2 = 0;
+    amc->fmc_model = "mx66l1g45g";
+    amc->spi_model = "mx66l1g45g";
+    amc->num_cs = 1;
+    amc->macs_mask = ASPEED_MAC0_ON;
+    mc->default_ram_size = 1 * GiB;
+    mc->default_cpus = mc->min_cpus = mc->max_cpus =
+        aspeed_soc_num_cpus(amc->soc_name);
+};
+
+static void aspeed_machine_fbtp_class_init(ObjectClass *oc, void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+    AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
+
+    mc->desc = "Facebook TiogaPass BMC (ARM1176)";
+    amc->soc_name = "ast2500-a1";
+    amc->hw_strap1 = 0;
+    amc->hw_strap2 = 0;
+    amc->fmc_model = "mx66l1g45g";
+    amc->spi_model = "mx66l1g45g";
+    amc->num_cs = 1;
+    amc->macs_mask = ASPEED_MAC0_ON;
+    mc->default_ram_size = 1 * GiB;
+    mc->default_cpus = mc->min_cpus = mc->max_cpus =
+        aspeed_soc_num_cpus(amc->soc_name);
+};
+
+static void aspeed_machine_cmm_class_init(ObjectClass *oc, void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+    AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
+
+    mc->desc = "Facebook Backpack CMM BMC (ARM1176)";
+    amc->soc_name = "ast2500-a1";
+    amc->hw_strap1 = 0;
+    amc->hw_strap2 = 0;
+    amc->fmc_model = "mx66l1g45g";
+    amc->spi_model = "mx66l1g45g";
+    amc->num_cs = 1;
+    amc->macs_mask = ASPEED_MAC1_ON;
+    amc->uart_default = ASPEED_DEV_UART1;
+    mc->default_ram_size = 1 * GiB;
+    mc->default_cpus = mc->min_cpus = mc->max_cpus =
+        aspeed_soc_num_cpus(amc->soc_name);
+};
+
+static void aspeed_machine_angelslanding_class_init(ObjectClass *oc, void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+    AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
+
+    mc->desc = "Facebook Angels Landing BMC (ARM1176)";
+    amc->soc_name = "ast2500-a1";
+    amc->hw_strap1 = 0;
+    amc->hw_strap2 = 0;
+    amc->fmc_model = "mx25l25655e";
+    amc->spi_model = "mx25l25655e";
+    amc->num_cs = 1;
+    amc->macs_mask = ASPEED_MAC0_ON | ASPEED_MAC1_ON;
+    amc->uart_default = ASPEED_DEV_UART5;
+    mc->default_ram_size = 512 * MiB;
+    mc->default_cpus = mc->min_cpus = mc->max_cpus =
+        aspeed_soc_num_cpus(amc->soc_name);
+};
+
+static void aspeed_machine_clearcreek_class_init(ObjectClass *oc, void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+    AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
+
+    mc->desc = "Facebook Clear Creek BMC (ARM1176)";
+    amc->soc_name = "ast2500-a1";
+    amc->hw_strap1 = 0;
+    amc->hw_strap2 = 0;
+    amc->fmc_model = "mx25l25655e";
+    amc->spi_model = "mx25l25655e";
+    amc->num_cs = 1;
+    amc->macs_mask = ASPEED_MAC0_ON | ASPEED_MAC1_ON;
+    mc->default_ram_size = 512 * MiB;
+    mc->default_cpus = mc->min_cpus = mc->max_cpus =
+        aspeed_soc_num_cpus(amc->soc_name);
+};
+
+static void aspeed_machine_elbert_class_init(ObjectClass *oc, void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+    AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
+
+    mc->desc = "Facebook Elbert BMC (Cortex-A7)";
+    amc->soc_name = "ast2600-a3";
+    amc->hw_strap1 = 0;
+    amc->hw_strap2 = 0;
+    amc->fmc_model = "mx66l1g45g";
+    amc->spi_model = "mx66l1g45g";
+    amc->num_cs = 2;
+    amc->macs_mask = ASPEED_MAC3_ON;
+    mc->default_ram_size = 2 * GiB;
+    mc->default_cpus = mc->min_cpus = mc->max_cpus =
+        aspeed_soc_num_cpus(amc->soc_name);
+};
+
+static void aspeed_machine_emeraldpools_class_init(ObjectClass *oc, void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+    AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
+
+    mc->desc = "Facebook Emerald Pools BMC (ARM1176)";
+    amc->soc_name = "ast2500-a1";
+    amc->hw_strap1 = 0;
+    amc->hw_strap2 = 0;
+    amc->fmc_model = "mx25l25655e";
+    amc->spi_model = "mx25l25655e";
+    amc->num_cs = 1;
+    amc->macs_mask = ASPEED_MAC3_ON;
+    mc->default_ram_size = 512 * MiB;
+    mc->default_cpus = mc->min_cpus = mc->max_cpus =
+        aspeed_soc_num_cpus(amc->soc_name);
+};
+
+static void aspeed_machine_northdome_class_init(ObjectClass *oc, void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+    AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
+
+    mc->desc = "Facebook Northdome BMC (ARM1176)";
+    amc->soc_name = "ast2500-a1";
+    amc->hw_strap1 = 0;
+    amc->hw_strap2 = 0;
+    amc->fmc_model = "mx25l25655e";
+    amc->spi_model = "mx25l25655e";
+    amc->num_cs = 1;
+    amc->macs_mask = ASPEED_MAC0_ON;
+    mc->default_ram_size = 512 * MiB;
+    mc->default_cpus = mc->min_cpus = mc->max_cpus =
+        aspeed_soc_num_cpus(amc->soc_name);
+};
+
+static void aspeed_machine_wedge100_class_init(ObjectClass *oc, void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+    AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
+
+    mc->desc = "Facebook Wedge 100 BMC (ARM926EJ-S)";
+    amc->soc_name = "ast2400-a1";
+    amc->hw_strap1 = 0;
+    amc->hw_strap2 = 0;
+    amc->fmc_model = "mx25l25655e";
+    amc->spi_model = "mx25l25655e";
+    amc->num_cs = 1;
+    amc->macs_mask = ASPEED_MAC1_ON;
+    amc->uart_default = ASPEED_DEV_UART3;
+    mc->default_ram_size = 512 * MiB;
+    mc->default_cpus = mc->min_cpus = mc->max_cpus =
+        aspeed_soc_num_cpus(amc->soc_name);
+};
+
+static void aspeed_machine_wedge400_class_init(ObjectClass *oc, void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+    AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
+
+    mc->desc = "Facebook Wedge 400 BMC (ARM1176)";
+    amc->soc_name = "ast2500-a1";
+    amc->hw_strap1 = 0;
+    amc->hw_strap2 = 0;
+    amc->fmc_model = "mx66l1g45g";
+    amc->spi_model = "mx66l1g45g";
+    amc->num_cs = 1;
+    amc->macs_mask = ASPEED_MAC1_ON;
+    amc->uart_default = ASPEED_DEV_UART1;
+    mc->default_ram_size = 1 * GiB;
+    mc->default_cpus = mc->min_cpus = mc->max_cpus =
+        aspeed_soc_num_cpus(amc->soc_name);
+};
+
+static void aspeed_machine_galaxy100_class_init(ObjectClass *oc, void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+    AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
+
+    mc->desc = "Facebook Galaxy 100 BMC (ARM926EJ-S)";
+    amc->soc_name = "ast2400-a1";
+    amc->hw_strap1 = 0;
+    amc->hw_strap2 = 0;
+    amc->fmc_model = "mx25l25655e";
+    amc->spi_model = "mx25l25655e";
+    amc->num_cs = 1;
+    amc->macs_mask = ASPEED_MAC1_ON;
+    amc->uart_default = ASPEED_DEV_UART5;
+    mc->default_ram_size = 512 * MiB;
+    mc->default_cpus = mc->min_cpus = mc->max_cpus =
+        aspeed_soc_num_cpus(amc->soc_name);
+};
+
+static void aspeed_machine_yamp_class_init(ObjectClass *oc, void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+    AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
+
+    mc->desc = "Facebook YAMP 100 BMC (ARM1176)";
+    amc->soc_name = "ast2500-a1";
+    amc->hw_strap1 = 0;
+    amc->hw_strap2 = 0;
+    amc->fmc_model = "mx25l25655e";
+    amc->spi_model = "mx25l25655e";
+    amc->num_cs = 1;
+    amc->macs_mask = ASPEED_MAC0_ON;
+    amc->uart_default = ASPEED_DEV_UART5;
+    mc->default_ram_size = 1 * GiB;
+    mc->default_cpus = mc->min_cpus = mc->max_cpus =
+        aspeed_soc_num_cpus(amc->soc_name);
+};
+
 static const TypeInfo aspeed_machine_types[] = {
     {
         .name          = MACHINE_TYPE_NAME("palmetto-bmc"),
@@ -1310,9 +1625,80 @@ static const TypeInfo aspeed_machine_types[] = {
         .parent        = TYPE_ASPEED_MACHINE,
         .class_init    = aspeed_machine_rainier_class_init,
     }, {
+        .name          = MACHINE_TYPE_NAME("minipack-bmc"),
+        .parent        = TYPE_ASPEED_MACHINE,
+        .class_init    = aspeed_machine_minipack_class_init,
+    }, {
         .name          = MACHINE_TYPE_NAME("fuji-bmc"),
         .parent        = TYPE_ASPEED_MACHINE,
         .class_init    = aspeed_machine_fuji_class_init,
+    }, {
+        .name          = MACHINE_TYPE_NAME("cloudripper-bmc"),
+        .parent        = TYPE_ASPEED_MACHINE,
+        .class_init    = aspeed_machine_cloudripper_class_init,
+    }, {
+        .name          = MACHINE_TYPE_NAME("grandcanyon-bmc"),
+        .parent        = TYPE_ASPEED_MACHINE,
+        .class_init    = aspeed_machine_grandcanyon_class_init,
+    }, {
+        .name          = MACHINE_TYPE_NAME("yosemitev2-bmc"),
+        .parent        = TYPE_ASPEED_MACHINE,
+        .class_init    = aspeed_machine_yosemitev2_class_init,
+    }, {
+        .name          = MACHINE_TYPE_NAME("yosemitev3-bmc"),
+        .parent        = TYPE_ASPEED_MACHINE,
+        .class_init    = aspeed_machine_yosemitev3_class_init,
+    }, {
+        .name          = MACHINE_TYPE_NAME("brycecanyon-bmc"),
+        .parent        = TYPE_ASPEED_MACHINE,
+        .class_init    = aspeed_machine_fbttn_class_init,
+    }, {
+        .name          = MACHINE_TYPE_NAME("tiogapass-bmc"),
+        .parent        = TYPE_ASPEED_MACHINE,
+        .class_init    = aspeed_machine_fbtp_class_init,
+    }, {
+        .name          = MACHINE_TYPE_NAME("cmm-bmc"),
+        .parent        = TYPE_ASPEED_MACHINE,
+        .class_init    = aspeed_machine_cmm_class_init,
+    }, {
+        .name          = MACHINE_TYPE_NAME("angelslanding-bmc"),
+        .parent        = TYPE_ASPEED_MACHINE,
+        .class_init    = aspeed_machine_angelslanding_class_init,
+    }, {
+        .name          = MACHINE_TYPE_NAME("clearcreek-bmc"),
+        .parent        = TYPE_ASPEED_MACHINE,
+        .class_init    = aspeed_machine_clearcreek_class_init,
+    }, {
+        .name          = MACHINE_TYPE_NAME("elbert-bmc"),
+        .parent        = TYPE_ASPEED_MACHINE,
+        .class_init    = aspeed_machine_elbert_class_init,
+    }, {
+        .name          = MACHINE_TYPE_NAME("elbertvboot-bmc"),
+        .parent        = MACHINE_TYPE_NAME("elbert-bmc"),
+    }, {
+        .name          = MACHINE_TYPE_NAME("emeraldpools-bmc"),
+        .parent        = TYPE_ASPEED_MACHINE,
+        .class_init    = aspeed_machine_emeraldpools_class_init,
+    }, {
+        .name          = MACHINE_TYPE_NAME("northdome-bmc"),
+        .parent        = TYPE_ASPEED_MACHINE,
+        .class_init    = aspeed_machine_northdome_class_init,
+    }, {
+        .name          = MACHINE_TYPE_NAME("wedge100-bmc"),
+        .parent        = TYPE_ASPEED_MACHINE,
+        .class_init    = aspeed_machine_wedge100_class_init,
+    }, {
+        .name          = MACHINE_TYPE_NAME("wedge400-bmc"),
+        .parent        = TYPE_ASPEED_MACHINE,
+        .class_init    = aspeed_machine_wedge400_class_init,
+    }, {
+        .name          = MACHINE_TYPE_NAME("galaxy100-bmc"),
+        .parent        = TYPE_ASPEED_MACHINE,
+        .class_init    = aspeed_machine_galaxy100_class_init,
+    }, {
+        .name          = MACHINE_TYPE_NAME("yamp-bmc"),
+        .parent        = TYPE_ASPEED_MACHINE,
+        .class_init    = aspeed_machine_yamp_class_init,
     }, {
         .name          = TYPE_ASPEED_MACHINE,
         .parent        = TYPE_MACHINE,
