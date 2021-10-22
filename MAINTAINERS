@@ -1044,8 +1044,10 @@ L: qemu-arm@nongnu.org
 S: Maintained
 F: hw/*/*aspeed*
 F: hw/misc/pca9552.c
+F: hw/misc/fancpld.c
 F: include/hw/*/*aspeed*
 F: include/hw/misc/pca9552*.h
+F: include/hw/misc/fancpld.c
 F: hw/net/ftgmac100.c
 F: include/hw/net/ftgmac100.h
 F: docs/system/arm/aspeed.rst
