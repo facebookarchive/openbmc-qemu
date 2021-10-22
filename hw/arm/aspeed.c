@@ -18,12 +18,15 @@
 #include "hw/i2c/smbus_eeprom.h"
 #include "hw/misc/pca9552.h"
 #include "hw/sensor/tmp105.h"
+#include "hw/misc/fancpld.h"
 #include "hw/misc/led.h"
 #include "hw/qdev-properties.h"
 #include "sysemu/block-backend.h"
+#include "sysemu/sysemu.h"
 #include "hw/loader.h"
 #include "qemu/error-report.h"
 #include "qemu/units.h"
+#include "hw/char/serial.h"
 
 static struct arm_boot_info aspeed_board_binfo = {
     .board_id = -1, /* device-tree-only board */
@@ -950,6 +953,38 @@ static void bletchley_bmc_i2c_init(AspeedMachineState *bmc)
     i2c_slave_create_simple(i2c[12], TYPE_PCA9552, 0x67);
 }
 
+static void wedge100_i2c_init(AspeedMachineState *bmc)
+{
+    AspeedSoCState *soc = &bmc->soc;
+    AspeedI2CClass *aic = ASPEED_I2C_GET_CLASS(&soc->i2c);
+    I2CBus **i2c = NULL;
+
+    serial_mm_init(get_system_memory(), 0x1E78F000, 2,
+                   qdev_get_gpio_in(DEVICE(&soc->vic), 34),
+                   38400, serial_hd(1), DEVICE_LITTLE_ENDIAN);
+
+    i2c = g_malloc0(sizeof(*i2c) * aic->num_busses);
+    for (int i = 0; i < aic->num_busses; i++) {
+        i2c[i] = aspeed_i2c_get_bus(&soc->i2c, i);
+    }
+
+    i2c_slave_create_simple(i2c[3], TYPE_TMP75, 0x48);
+    i2c_slave_create_simple(i2c[3], TYPE_TMP75, 0x49);
+    i2c_slave_create_simple(i2c[3], TYPE_TMP75, 0x4a);
+    i2c_slave_create_simple(i2c[3], TYPE_TMP75, 0x4b);
+    i2c_slave_create_simple(i2c[3], TYPE_TMP75, 0x4c);
+
+    i2c_slave_create_simple(i2c[4], TYPE_FANCPLD, 0x33);
+
+    aspeed_eeprom_init(i2c[6], 0x51, 64 * KiB);
+
+    aspeed_eeprom_init(i2c[7], 0x50, 2 * KiB);
+
+    i2c_slave_create_simple(i2c[8], TYPE_FANCPLD, 0x33);
+    i2c_slave_create_simple(i2c[8], TYPE_TMP75, 0x48);
+    i2c_slave_create_simple(i2c[8], TYPE_TMP75, 0x49);
+}
+
 static bool aspeed_get_mmio_exec(Object *obj, Error **errp)
 {
     return ASPEED_MACHINE(obj)->mmio_exec;
@@ -1544,6 +1579,7 @@ static void aspeed_machine_wedge100_class_init(ObjectClass *oc, void *data)
     amc->spi_model = "mx25l25655e";
     amc->num_cs = 1;
     amc->macs_mask = ASPEED_MAC1_ON;
+    amc->i2c_init = wedge100_i2c_init;
     amc->uart_default = ASPEED_DEV_UART3;
     mc->default_ram_size = 512 * MiB;
     mc->default_cpus = mc->min_cpus = mc->max_cpus =
