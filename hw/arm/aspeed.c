@@ -28,6 +28,10 @@
 #include "qemu/units.h"
 #include "hw/char/serial.h"
 
+#define FB_FLASH_MODEL_32MB "mx25l25635e"
+#define FB_FLASH_MODEL_64MB "mx66u51235f"
+#define FB_FLASH_MODEL_128MB "mx66l1g45g"
+
 static struct arm_boot_info aspeed_board_binfo = {
     .board_id = -1, /* device-tree-only board */
 };
@@ -1297,8 +1301,8 @@ static void aspeed_machine_fuji_class_init(ObjectClass *oc, void *data)
     amc->soc_name = "ast2600-a3";
     amc->hw_strap1 = FUJI_BMC_HW_STRAP1;
     amc->hw_strap2 = FUJI_BMC_HW_STRAP2;
-    amc->fmc_model = "mx66l1g45g";
-    amc->spi_model = "mx66l1g45g";
+    amc->fmc_model = FB_FLASH_MODEL_128MB;
+    amc->spi_model = FB_FLASH_MODEL_128MB;
     amc->num_cs = 2;
     amc->macs_mask = ASPEED_MAC3_ON;
     amc->i2c_init = fuji_bmc_i2c_init;
@@ -1336,9 +1340,9 @@ static void aspeed_machine_minipack_class_init(ObjectClass *oc, void *data)
     amc->soc_name = "ast2500-a1";
     amc->hw_strap1 = 0;
     amc->hw_strap2 = 0;
-    amc->fmc_model = "mx66l1g45g";
-    amc->spi_model = "mx66l1g45g";
-    amc->num_cs = 1;
+    amc->fmc_model = FB_FLASH_MODEL_64MB;
+    amc->spi_model = FB_FLASH_MODEL_64MB;
+    amc->num_cs = 2;
     amc->macs_mask = ASPEED_MAC1_ON;
     amc->uart_default = ASPEED_DEV_UART1;
     mc->default_ram_size = 1 * GiB;
@@ -1355,8 +1359,8 @@ static void aspeed_machine_cloudripper_class_init(ObjectClass *oc, void *data)
     amc->soc_name = "ast2600-a3";
     amc->hw_strap1 = 0;
     amc->hw_strap2 = 0;
-    amc->fmc_model = "mx66l1g45g";
-    amc->spi_model = "mx66l1g45g";
+    amc->fmc_model = FB_FLASH_MODEL_128MB;
+    amc->spi_model = FB_FLASH_MODEL_128MB;
     amc->num_cs = 2;
     amc->macs_mask = ASPEED_MAC3_ON;
     amc->uart_default = ASPEED_DEV_UART1;
@@ -1374,8 +1378,8 @@ static void aspeed_machine_grandcanyon_class_init(ObjectClass *oc, void *data)
     amc->soc_name = "ast2600-a3";
     amc->hw_strap1 = 0;
     amc->hw_strap2 = 0;
-    amc->fmc_model = "mx66l1g45g";
-    amc->spi_model = "mx66l1g45g";
+    amc->fmc_model = FB_FLASH_MODEL_128MB;
+    amc->spi_model = FB_FLASH_MODEL_128MB;
     amc->num_cs = 2;
     amc->macs_mask = ASPEED_MAC3_ON;
     amc->uart_default = ASPEED_DEV_UART5;
@@ -1393,9 +1397,9 @@ static void aspeed_machine_yosemitev2_class_init(ObjectClass *oc, void *data)
     amc->soc_name = "ast2500-a1";
     amc->hw_strap1 = AST2500_EVB_HW_STRAP1;
     amc->hw_strap2 = 0;
-    amc->fmc_model = "mx25l25655e";
-    amc->spi_model = "mx25l25655e";
-    amc->num_cs = 1;
+    amc->fmc_model = FB_FLASH_MODEL_32MB;
+    amc->spi_model = FB_FLASH_MODEL_32MB;
+    amc->num_cs = 2;
     amc->macs_mask = ASPEED_MAC0_ON;
     mc->default_ram_size = 512 * MiB;
     mc->default_cpus = mc->min_cpus = mc->max_cpus =
@@ -1411,14 +1415,33 @@ static void aspeed_machine_yosemitev3_class_init(ObjectClass *oc, void *data)
     amc->soc_name = "ast2500-a1";
     amc->hw_strap1 = AST2500_EVB_HW_STRAP1;
     amc->hw_strap2 = 0;
-    amc->fmc_model = "mx66l1g45g";
-    amc->spi_model = "mx66l1g45g";
-    amc->num_cs = 1;
+    amc->fmc_model = FB_FLASH_MODEL_32MB;
+    amc->spi_model = FB_FLASH_MODEL_32MB;
+    amc->num_cs = 2;
     amc->macs_mask = ASPEED_MAC0_ON;
     mc->default_ram_size = 1 * GiB;
     mc->default_cpus = mc->min_cpus = mc->max_cpus =
         aspeed_soc_num_cpus(amc->soc_name);
 };
+
+static void aspeed_machine_fby35_class_init(ObjectClass *oc, void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+    AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
+
+    mc->desc = "Facebook fby35 BMC (Cortex-A7)";
+    amc->soc_name = "ast2600-a3";
+    amc->hw_strap1 = 0;
+    amc->hw_strap2 = 0;
+    amc->fmc_model = FB_FLASH_MODEL_32MB;
+    amc->spi_model = FB_FLASH_MODEL_32MB;
+    amc->num_cs = 2;
+    amc->macs_mask = ASPEED_MAC3_ON;
+    amc->uart_default = ASPEED_DEV_UART5;
+    mc->default_ram_size = 2 * GiB;
+    mc->default_cpus = mc->min_cpus = mc->max_cpus =
+        aspeed_soc_num_cpus(amc->soc_name);
+}
 
 static void aspeed_machine_fbttn_class_init(ObjectClass *oc, void *data)
 {
@@ -1429,9 +1452,9 @@ static void aspeed_machine_fbttn_class_init(ObjectClass *oc, void *data)
     amc->soc_name = "ast2500-a1";
     amc->hw_strap1 = 0;
     amc->hw_strap2 = 0;
-    amc->fmc_model = "mx66l1g45g";
-    amc->spi_model = "mx66l1g45g";
-    amc->num_cs = 1;
+    amc->fmc_model = FB_FLASH_MODEL_32MB;
+    amc->spi_model = FB_FLASH_MODEL_32MB;
+    amc->num_cs = 2;
     amc->macs_mask = ASPEED_MAC0_ON;
     mc->default_ram_size = 1 * GiB;
     mc->default_cpus = mc->min_cpus = mc->max_cpus =
@@ -1447,9 +1470,9 @@ static void aspeed_machine_fbtp_class_init(ObjectClass *oc, void *data)
     amc->soc_name = "ast2500-a1";
     amc->hw_strap1 = 0;
     amc->hw_strap2 = 0;
-    amc->fmc_model = "mx66l1g45g";
-    amc->spi_model = "mx66l1g45g";
-    amc->num_cs = 1;
+    amc->fmc_model = FB_FLASH_MODEL_32MB;
+    amc->spi_model = FB_FLASH_MODEL_32MB;
+    amc->num_cs = 2;
     amc->macs_mask = ASPEED_MAC0_ON;
     mc->default_ram_size = 1 * GiB;
     mc->default_cpus = mc->min_cpus = mc->max_cpus =
@@ -1465,9 +1488,9 @@ static void aspeed_machine_cmm_class_init(ObjectClass *oc, void *data)
     amc->soc_name = "ast2500-a1";
     amc->hw_strap1 = 0;
     amc->hw_strap2 = 0;
-    amc->fmc_model = "mx66l1g45g";
-    amc->spi_model = "mx66l1g45g";
-    amc->num_cs = 1;
+    amc->fmc_model = FB_FLASH_MODEL_32MB;
+    amc->spi_model = FB_FLASH_MODEL_32MB;
+    amc->num_cs = 2;
     amc->macs_mask = ASPEED_MAC1_ON;
     amc->uart_default = ASPEED_DEV_UART1;
     mc->default_ram_size = 1 * GiB;
@@ -1484,9 +1507,9 @@ static void aspeed_machine_angelslanding_class_init(ObjectClass *oc, void *data)
     amc->soc_name = "ast2500-a1";
     amc->hw_strap1 = 0;
     amc->hw_strap2 = 0;
-    amc->fmc_model = "mx25l25655e";
-    amc->spi_model = "mx25l25655e";
-    amc->num_cs = 1;
+    amc->fmc_model = FB_FLASH_MODEL_32MB;
+    amc->spi_model = FB_FLASH_MODEL_32MB;
+    amc->num_cs = 2;
     amc->macs_mask = ASPEED_MAC0_ON | ASPEED_MAC1_ON;
     amc->uart_default = ASPEED_DEV_UART5;
     mc->default_ram_size = 512 * MiB;
@@ -1503,9 +1526,9 @@ static void aspeed_machine_clearcreek_class_init(ObjectClass *oc, void *data)
     amc->soc_name = "ast2500-a1";
     amc->hw_strap1 = 0;
     amc->hw_strap2 = 0;
-    amc->fmc_model = "mx25l25655e";
-    amc->spi_model = "mx25l25655e";
-    amc->num_cs = 1;
+    amc->fmc_model = FB_FLASH_MODEL_32MB;
+    amc->spi_model = FB_FLASH_MODEL_32MB;
+    amc->num_cs = 2;
     amc->macs_mask = ASPEED_MAC0_ON | ASPEED_MAC1_ON;
     mc->default_ram_size = 512 * MiB;
     mc->default_cpus = mc->min_cpus = mc->max_cpus =
@@ -1521,8 +1544,8 @@ static void aspeed_machine_elbert_class_init(ObjectClass *oc, void *data)
     amc->soc_name = "ast2600-a3";
     amc->hw_strap1 = 0;
     amc->hw_strap2 = 0;
-    amc->fmc_model = "mx66l1g45g";
-    amc->spi_model = "mx66l1g45g";
+    amc->fmc_model = FB_FLASH_MODEL_32MB;
+    amc->spi_model = FB_FLASH_MODEL_32MB;
     amc->num_cs = 2;
     amc->macs_mask = ASPEED_MAC3_ON;
     mc->default_ram_size = 2 * GiB;
@@ -1539,9 +1562,9 @@ static void aspeed_machine_emeraldpools_class_init(ObjectClass *oc, void *data)
     amc->soc_name = "ast2500-a1";
     amc->hw_strap1 = 0;
     amc->hw_strap2 = 0;
-    amc->fmc_model = "mx25l25655e";
-    amc->spi_model = "mx25l25655e";
-    amc->num_cs = 1;
+    amc->fmc_model = FB_FLASH_MODEL_32MB;
+    amc->spi_model = FB_FLASH_MODEL_32MB;
+    amc->num_cs = 2;
     amc->macs_mask = ASPEED_MAC3_ON;
     mc->default_ram_size = 512 * MiB;
     mc->default_cpus = mc->min_cpus = mc->max_cpus =
@@ -1557,9 +1580,9 @@ static void aspeed_machine_northdome_class_init(ObjectClass *oc, void *data)
     amc->soc_name = "ast2500-a1";
     amc->hw_strap1 = 0;
     amc->hw_strap2 = 0;
-    amc->fmc_model = "mx25l25655e";
-    amc->spi_model = "mx25l25655e";
-    amc->num_cs = 1;
+    amc->fmc_model = FB_FLASH_MODEL_32MB;
+    amc->spi_model = FB_FLASH_MODEL_32MB;
+    amc->num_cs = 2;
     amc->macs_mask = ASPEED_MAC0_ON;
     mc->default_ram_size = 512 * MiB;
     mc->default_cpus = mc->min_cpus = mc->max_cpus =
@@ -1575,9 +1598,9 @@ static void aspeed_machine_wedge100_class_init(ObjectClass *oc, void *data)
     amc->soc_name = "ast2400-a1";
     amc->hw_strap1 = 0;
     amc->hw_strap2 = 0;
-    amc->fmc_model = "mx25l25655e";
-    amc->spi_model = "mx25l25655e";
-    amc->num_cs = 1;
+    amc->fmc_model = FB_FLASH_MODEL_32MB;
+    amc->spi_model = FB_FLASH_MODEL_32MB;
+    amc->num_cs = 2;
     amc->macs_mask = ASPEED_MAC1_ON;
     amc->i2c_init = wedge100_i2c_init;
     amc->uart_default = ASPEED_DEV_UART3;
@@ -1595,9 +1618,9 @@ static void aspeed_machine_wedge400_class_init(ObjectClass *oc, void *data)
     amc->soc_name = "ast2500-a1";
     amc->hw_strap1 = 0;
     amc->hw_strap2 = 0;
-    amc->fmc_model = "mx66l1g45g";
-    amc->spi_model = "mx66l1g45g";
-    amc->num_cs = 1;
+    amc->fmc_model = FB_FLASH_MODEL_128MB;
+    amc->spi_model = FB_FLASH_MODEL_128MB;
+    amc->num_cs = 2;
     amc->macs_mask = ASPEED_MAC1_ON;
     amc->uart_default = ASPEED_DEV_UART1;
     mc->default_ram_size = 1 * GiB;
@@ -1614,9 +1637,9 @@ static void aspeed_machine_galaxy100_class_init(ObjectClass *oc, void *data)
     amc->soc_name = "ast2400-a1";
     amc->hw_strap1 = 0;
     amc->hw_strap2 = 0;
-    amc->fmc_model = "mx25l25655e";
-    amc->spi_model = "mx25l25655e";
-    amc->num_cs = 1;
+    amc->fmc_model = FB_FLASH_MODEL_32MB;
+    amc->spi_model = FB_FLASH_MODEL_32MB;
+    amc->num_cs = 2;
     amc->macs_mask = ASPEED_MAC1_ON;
     amc->uart_default = ASPEED_DEV_UART5;
     mc->default_ram_size = 512 * MiB;
@@ -1633,9 +1656,9 @@ static void aspeed_machine_yamp_class_init(ObjectClass *oc, void *data)
     amc->soc_name = "ast2500-a1";
     amc->hw_strap1 = 0;
     amc->hw_strap2 = 0;
-    amc->fmc_model = "mx25l25655e";
-    amc->spi_model = "mx25l25655e";
-    amc->num_cs = 1;
+    amc->fmc_model = FB_FLASH_MODEL_32MB;
+    amc->spi_model = FB_FLASH_MODEL_32MB;
+    amc->num_cs = 2;
     amc->macs_mask = ASPEED_MAC0_ON;
     amc->uart_default = ASPEED_DEV_UART5;
     mc->default_ram_size = 1 * GiB;
@@ -1720,6 +1743,10 @@ static const TypeInfo aspeed_machine_types[] = {
         .name          = MACHINE_TYPE_NAME("yosemitev3-bmc"),
         .parent        = TYPE_ASPEED_MACHINE,
         .class_init    = aspeed_machine_yosemitev3_class_init,
+    }, {
+        .name          = MACHINE_TYPE_NAME("fby35-bmc"),
+        .parent        = TYPE_ASPEED_MACHINE,
+        .class_init    = aspeed_machine_fby35_class_init,
     }, {
         .name          = MACHINE_TYPE_NAME("brycecanyon-bmc"),
         .parent        = TYPE_ASPEED_MACHINE,
