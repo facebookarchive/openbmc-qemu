@@ -1,3 +1,108 @@
+============================
+Facebook OpenBMC QEMU README
+============================
+
+Build QEMU first:
+
+.. code-block:: shell
+
+  git clone https://github.com/facebook/openbmc-qemu
+  cd qemu
+  ./configure --target-list=arm-softmmu
+  make -j $(nproc)
+
+Check the list of machine types:
+
+.. code-block:: shell
+
+  ./build/qemu-system-arm -machine help | grep Facebook
+  # angelslanding-bmc    Facebook Angels Landing BMC (ARM1176)
+  # brycecanyon-bmc      Facebook BryceCanyon BMC (ARM1176)
+  # clearcreek-bmc       Facebook Clear Creek BMC (ARM1176)
+  # cloudripper-bmc      Facebook Cloudripper BMC (Cortex-A7)
+  # cmm-bmc              Facebook Backpack CMM BMC (ARM1176)
+  # elbert-bmc           Facebook Elbert BMC (Cortex-A7)
+  # elbertvboot-bmc      Facebook Elbert BMC (Cortex-A7)
+  # emeraldpools-bmc     Facebook Emerald Pools BMC (ARM1176)
+  # fby35-bmc            Facebook fby35 BMC (Cortex-A7)
+  # fuji-bmc             Facebook Fuji BMC (Cortex-A7)
+  # galaxy100-bmc        Facebook Galaxy 100 BMC (ARM926EJ-S)
+  # grandcanyon-bmc      Facebook GrandCanyon BMC (Cortex-A7)
+  # minipack-bmc         Facebook Minipack 100 BMC (ARM1176)
+  # northdome-bmc        Facebook Northdome BMC (ARM1176)
+  # tiogapass-bmc        Facebook TiogaPass BMC (ARM1176)
+  # wedge100-bmc         Facebook Wedge 100 BMC (ARM926EJ-S)
+  # wedge400-bmc         Facebook Wedge 400 BMC (ARM1176)
+  # yamp-bmc             Facebook YAMP 100 BMC (ARM1176)
+  # yosemitev2-bmc       Facebook Yosemitev2 BMC (ARM1176)
+  # yosemitev3-bmc       Facebook Yosemitev3 BMC (ARM1176)
+
+See https://github.com/facebook/openbmc to build an OpenBMC flash image.
+
+Create a fixed-size MTD image from the OpenBMC flash image. 128MB is the
+larget size, so it works for all platforms.
+
+.. code-block:: shell
+
+  # For example, after building flash-fby2 (YosemiteV2)
+  dd if=/dev/zero of=fby2.mtd bs=1M count=128
+  dd if=flash-fby2 of=fby2.mtd bs=1k conv=notrunc
+
+To boot from the image:
+
+.. code-block:: shell
+
+  ./build/qemu-system-arm -machine yosemitev2-bmc \
+    -drive file=fby2.mtd,format=raw,if=mtd \
+    -drive file=fby2.mtd,format=raw,if=mtd \
+    -serial stdio -display none \
+
+Note: 2 drive arguments are provided, first is primary flash (recovery
+image) second is secondary flash (normal image).
+
+To add port forwarding from the host port 2222 to the guest port 22:
+
+.. code-block:: shell
+
+  ./build/qemu-system-arm -machine yosemitev2-bmc \
+    -drive file=fby2.mtd,format=raw,if=mtd \
+    -drive file=fby2.mtd,format=raw,if=mtd \
+    -serial stdio -display none \
+    -nic user,hostfwd=::2222-:22
+
+And then you can ssh in:
+
+.. code-block:: shell
+
+  sshpass -p 0penBmc ssh root@localhost -p 2222
+
+TUN/TAP configuration:
+
+.. code-block:: shell
+
+  sudo ip link add dev bmc-br0 type bridge
+  sudo ip link set dev bmc-br0 up
+  sudo ip tuntap add tap0 mode tap
+  sudo ip link set tap0 up
+  sudo brctl addif bmc-br0 tap0
+
+  ./build/qemu-system-arm -machine yosemitev2-bmc \
+    -drive file=fby2.mtd,format=raw,if=mtd \
+    -drive file=fby2.mtd,format=raw,if=mtd \
+    -serial stdio -display none \
+    -netdev tap,id=tap0,script=no,ifname=tap0 \
+    -net nic,netdev=tap0,macaddr=00:11:22:33:44:55,model=ftgmac100
+  # ... after boot, find link-local IPv6 address in the guest OS
+  ip address show dev eth0 scope link
+  # 2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+  #     link/ether 8e:0c:2d:76:b8:6b brd ff:ff:ff:ff:ff:ff
+  #    inet6 fe80::8c0c:2dff:fe76:b86b/64 scope link
+  #        valid_lft forever preferred_lft forever
+
+  # Then you can ping or ssh to from the host to the guest
+  ping6 fe80::8c0c:2dff:fe76:b86b%bmc-br0
+  sshpass -p 0penBmc ssh root@fe80::8c0c:2dff:fe76:b86b%bmc-br0
+
 ===========
 QEMU README
 ===========
