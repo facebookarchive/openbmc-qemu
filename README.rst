@@ -6,6 +6,11 @@ Build QEMU first:
 
 .. code-block:: shell
 
+  # Install package dependencies first.
+  #
+  # CentOS:
+  dnf install ninja-build glib2-devel pixman-devel
+
   git clone https://github.com/facebook/openbmc-qemu
   cd qemu
   ./configure --target-list=arm-softmmu
