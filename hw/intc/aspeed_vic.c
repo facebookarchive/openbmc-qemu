@@ -168,6 +168,12 @@ static uint64_t aspeed_vic_read(void *opaque, hwaddr offset, unsigned size)
                       HWADDR_PRIx "\n", __func__, offset);
         val = 0;
         break;
+    case 0x60: /* Hardware Heart Beat Status Register */
+        val = s->heartbeat_status & 0x1f;
+        break;
+    case 0x64: /* Heart Beat LED Output */
+        val = s->heartbeat_output & 1;
+        break;
     default:
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: Bad register at offset 0x%" HWADDR_PRIx "\n",
@@ -272,6 +278,13 @@ static void aspeed_vic_write(void *opaque, hwaddr offset, uint64_t data,
                       "%s: Write of read-only register with offset 0x%"
                       HWADDR_PRIx "\n", __func__, offset);
         break;
+    case 0x60: /* Hardware Heart Beat Status Register */
+        /* Only the first 5 bits are RW */
+        s->heartbeat_status = data & 0x1f;
+        break;
+    case 0x64: /* Heart Beat LED Output */
+        s->heartbeat_output = data & 1;
+        break;
 
     default:
         qemu_log_mask(LOG_GUEST_ERROR,
@@ -303,6 +316,8 @@ static void aspeed_vic_reset(DeviceState *dev)
     s->sense = 0x1F07FFF8FFFFULL;
     s->dual_edge = 0xF800070000ULL;
     s->event = 0x5F07FFF8FFFFULL;
+    s->heartbeat_status = 0x03;
+    s->heartbeat_output = 0x00;
 }
 
 #define AVIC_IO_REGION_SIZE 0x20000

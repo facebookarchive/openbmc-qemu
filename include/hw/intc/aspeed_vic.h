@@ -44,6 +44,11 @@ struct AspeedVICState {
 
     /* 0=low-sensitive/falling-edge, 1=high-sensitive/rising-edge */
     uint64_t event;
+
+    /* Configure heartbeat LED mode, either hardware or software based */
+    uint64_t heartbeat_status;
+    /* Register for controlling heartbeat LED output in software mode */
+    uint64_t heartbeat_output;
 };
 
 #endif /* ASPEED_VIC_H */
