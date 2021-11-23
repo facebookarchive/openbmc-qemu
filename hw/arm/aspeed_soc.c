@@ -48,7 +48,9 @@ static const hwaddr aspeed_soc_ast2400_memmap[] = {
     [ASPEED_DEV_ETH1]   = 0x1E660000,
     [ASPEED_DEV_ETH2]   = 0x1E680000,
     [ASPEED_DEV_UART1]  = 0x1E783000,
+    [ASPEED_DEV_UART2]  = 0x1E78D000,
     [ASPEED_DEV_UART3]  = 0x1E78E000,
+    [ASPEED_DEV_UART4]  = 0x1E78F000,
     [ASPEED_DEV_UART5]  = 0x1E784000,
     [ASPEED_DEV_VUART]  = 0x1E787000,
     [ASPEED_DEV_SDRAM]  = 0x40000000,
@@ -81,7 +83,9 @@ static const hwaddr aspeed_soc_ast2500_memmap[] = {
     [ASPEED_DEV_ETH1]   = 0x1E660000,
     [ASPEED_DEV_ETH2]   = 0x1E680000,
     [ASPEED_DEV_UART1]  = 0x1E783000,
+    [ASPEED_DEV_UART2]  = 0x1E78D000,
     [ASPEED_DEV_UART3]  = 0x1E78E000,
+    [ASPEED_DEV_UART4]  = 0x1E78F000,
     [ASPEED_DEV_UART5]  = 0x1E784000,
     [ASPEED_DEV_VUART]  = 0x1E787000,
     [ASPEED_DEV_SDRAM]  = 0x80000000,
@@ -304,6 +308,18 @@ static void aspeed_soc_realize(DeviceState *dev, Error **errp)
     serial_mm_init(get_system_memory(), sc->memmap[s->uart_default], 2,
                    aspeed_soc_get_irq(s, s->uart_default), 38400,
                    serial_hd(0), DEVICE_LITTLE_ENDIAN);
+
+    for (int i = 1, uart = ASPEED_DEV_UART1; i < 5; i++, uart++) {
+        if (uart == s->uart_default) {
+            uart++;
+        }
+        assert(uart <= ASPEED_DEV_UART5);
+
+        uint32_t uart_addr = sc->memmap[uart];
+        qemu_irq irq = aspeed_soc_get_irq(s, uart);
+        serial_mm_init(get_system_memory(), uart_addr, 2, irq, 38400,
+                       serial_hd(i), DEVICE_LITTLE_ENDIAN);
+    }
 
     /* I2C */
     object_property_set_link(OBJECT(&s->i2c), "dram", OBJECT(s->dram_mr),
