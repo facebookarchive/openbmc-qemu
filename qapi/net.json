@@ -195,7 +195,8 @@
     '*hostfwd':   ['String'],
     '*guestfwd':  ['String'],
     '*tftp-server-name': 'str',
-    '*mfr-id': 'uint32' } }
+    '*mfr-id': 'uint32',
+    '*ncsi-mac': 'str' } }
 
 ##
 # @NetdevTapOptions:

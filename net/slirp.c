@@ -366,7 +366,7 @@ static int net_slirp_init(NetClientState *peer, const char *model,
                           const char *smb_export, const char *vsmbserver,
                           const char **dnssearch, const char *vdomainname,
                           const char *tftp_server_name, uint32_t mfr_id,
-                          Error **errp)
+                          uint8_t ncsi_mac[ETH_ALEN], Error **errp)
 {
     /* default settings according to historic slirp */
     struct in_addr net  = { .s_addr = htonl(0x0a000200) }; /* 10.0.2.0 */
@@ -573,7 +573,7 @@ static int net_slirp_init(NetClientState *peer, const char *model,
                           vhostname, tftp_server_name,
                           tftp_export, bootfile, dhcp,
                           dns, ip6_dns, dnssearch, vdomainname,
-                          mfr_id, &slirp_cb, s);
+                          mfr_id, ncsi_mac, &slirp_cb, s);
     QTAILQ_INSERT_TAIL(&slirp_stacks, s, entry);
 
     /*
@@ -1078,6 +1078,7 @@ int net_init_slirp(const Netdev *netdev, const char *name,
     const NetdevUserOptions *user;
     const char **dnssearch;
     bool ipv4 = true, ipv6 = true;
+    MACAddr ncsi_mac;
 
     assert(netdev->type == NET_CLIENT_DRIVER_USER);
     user = &netdev->u.user;
@@ -1102,6 +1103,19 @@ int net_init_slirp(const Netdev *netdev, const char *name,
     net_init_slirp_configs(user->hostfwd, SLIRP_CFG_HOSTFWD);
     net_init_slirp_configs(user->guestfwd, 0);
 
+    memset(&ncsi_mac, 0, sizeof(ncsi_mac));
+    if (user->has_ncsi_mac &&
+        net_parse_macaddr(ncsi_mac.a, user->ncsi_mac) < 0) {
+        error_setg(errp, "invalid syntax for ethernet address");
+        return -1;
+    }
+    if (user->has_ncsi_mac && is_multicast_ether_addr(ncsi_mac.a)) {
+        error_setg(errp,
+                   "NIC cannot have multicast MAC address (odd 1st byte)");
+        return -1;
+    }
+    qemu_macaddr_default_if_unset(&ncsi_mac);
+
     ret = net_slirp_init(peer, "user", name, user->q_restrict,
                          ipv4, vnet, user->host,
                          ipv6, user->ipv6_prefix, user->ipv6_prefixlen,
@@ -1109,7 +1123,8 @@ int net_init_slirp(const Netdev *netdev, const char *name,
                          user->bootfile, user->dhcpstart,
                          user->dns, user->ipv6_dns, user->smb,
                          user->smbserver, dnssearch, user->domainname,
-                         user->tftp_server_name, user->mfr_id, errp);
+                         user->tftp_server_name, user->mfr_id, ncsi_mac.a,
+                         errp);
 
     while (slirp_configs) {
         config = slirp_configs;
