@@ -365,7 +365,7 @@ static int net_slirp_init(NetClientState *peer, const char *model,
                           const char *vnameserver, const char *vnameserver6,
                           const char *smb_export, const char *vsmbserver,
                           const char **dnssearch, const char *vdomainname,
-                          const char *tftp_server_name,
+                          const char *tftp_server_name, uint32_t mfr_id,
                           Error **errp)
 {
     /* default settings according to historic slirp */
@@ -573,7 +573,7 @@ static int net_slirp_init(NetClientState *peer, const char *model,
                           vhostname, tftp_server_name,
                           tftp_export, bootfile, dhcp,
                           dns, ip6_dns, dnssearch, vdomainname,
-                          &slirp_cb, s);
+                          mfr_id, &slirp_cb, s);
     QTAILQ_INSERT_TAIL(&slirp_stacks, s, entry);
 
     /*
@@ -1109,7 +1109,7 @@ int net_init_slirp(const Netdev *netdev, const char *name,
                          user->bootfile, user->dhcpstart,
                          user->dns, user->ipv6_dns, user->smb,
                          user->smbserver, dnssearch, user->domainname,
-                         user->tftp_server_name, errp);
+                         user->tftp_server_name, user->mfr_id, errp);
 
     while (slirp_configs) {
         config = slirp_configs;
