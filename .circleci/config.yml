@@ -1,0 +1,34 @@
+version: 2.1
+jobs:
+    build-and-test:
+        docker:
+            - image: crops/poky:latest
+              user: root
+        steps:
+            - run:
+                command: |
+                    apt update
+                    apt install -y ninja-build \
+                                   pkg-config \
+                                   libglib2.0-dev \
+                                   libpixman-1-dev
+            - checkout
+            - run:
+                command: |
+                    ./configure --target-list=arm-softmmu
+            - run:
+                command: |
+                    make
+            - run:
+                command: |
+                    git remote add upstream https://github.com/qemu/qemu
+                    git fetch upstream
+                    ./scripts/checkpatch.pl --branch $(git merge-base upstream/master master)...master
+            - run:
+                command: |
+                    make check
+workflows:
+    version: 2.1
+    everything:
+        jobs:
+            - build-and-test
