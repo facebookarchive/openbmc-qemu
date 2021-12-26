@@ -3666,6 +3666,11 @@ M: Philippe Mathieu-Daudé <f4bug@amsat.org>
 S: Maintained
 F: .gitlab-ci.d/custom-runners/ubuntu-20.04-aarch64.yml
 
+CircleCI
+M: Peter Delevoryas <pdel@fb.com>
+S: Maintained
+F: .circleci/config.yml
+
 Documentation
 -------------
 Build system architecture
