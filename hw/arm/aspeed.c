@@ -1415,8 +1415,8 @@ static void aspeed_machine_yosemitev3_class_init(ObjectClass *oc, void *data)
     amc->soc_name = "ast2500-a1";
     amc->hw_strap1 = AST2500_EVB_HW_STRAP1;
     amc->hw_strap2 = 0;
-    amc->fmc_model = FB_FLASH_MODEL_32MB;
-    amc->spi_model = FB_FLASH_MODEL_32MB;
+    amc->fmc_model = FB_FLASH_MODEL_128MB;
+    amc->spi_model = FB_FLASH_MODEL_128MB;
     amc->num_cs = 2;
     amc->macs_mask = ASPEED_MAC0_ON;
     mc->default_ram_size = 1 * GiB;
@@ -1433,8 +1433,8 @@ static void aspeed_machine_fby35_class_init(ObjectClass *oc, void *data)
     amc->soc_name = "ast2600-a3";
     amc->hw_strap1 = 0;
     amc->hw_strap2 = 0;
-    amc->fmc_model = FB_FLASH_MODEL_32MB;
-    amc->spi_model = FB_FLASH_MODEL_32MB;
+    amc->fmc_model = FB_FLASH_MODEL_128MB;
+    amc->spi_model = FB_FLASH_MODEL_128MB;
     amc->num_cs = 2;
     amc->macs_mask = ASPEED_MAC3_ON;
     amc->uart_default = ASPEED_DEV_UART5;
