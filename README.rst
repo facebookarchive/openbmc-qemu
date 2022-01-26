@@ -108,6 +108,27 @@ TUN/TAP configuration:
   ping6 fe80::8c0c:2dff:fe76:b86b%bmc-br0
   sshpass -p 0penBmc ssh root@fe80::8c0c:2dff:fe76:b86b%bmc-br0
 
+# `macvtap` configuration
+
+.. code-block:: shell
+
+  export MACVTAP0_ADDR="1a:46:0b:ca:bc:7b"
+  sudo ip link add link eth0 name macvtap0 type macvtap
+  sudo ip link set macvtap0 address $MACVTAP0_ADDR up
+
+  # For some reason, I get permission errors opening /dev/tap3 if I don't
+  # switch to root.
+  su -
+  export MACVTAP0_IFINDEX="$(cat /sys/class/net/macvtap0/ifindex)"
+  export MACVTAP0_DEV="/dev/tap$MACVTAP0_IFINDEX"
+  ./build/qemu-system-arm -machine yosemitev2-bmc \
+    -drive file=fby2.mtd,format=raw,if=mtd \
+    -drive file=fby2.mtd,format=raw,if=mtd \
+    -serial stdio -display none \
+    -netdev tap,fd=3,id=macvtap0 \
+    -net nic,netdev=macvtap0,macaddr=$MACVTAP0_ADDR,model=ftgmac100 \
+    3<>$MACVTAP0_DEV
+
 Debugging with GDB:
 
 .. code-block:: shell
