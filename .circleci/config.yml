@@ -6,6 +6,7 @@ jobs:
               user: root
         steps:
             - run:
+                name: "Install dependencies"
                 command: |
                     apt update
                     apt install -y ninja-build \
@@ -14,19 +15,24 @@ jobs:
                                    libpixman-1-dev
             - checkout
             - run:
+                name: "configure"
                 command: |
                     ./configure --target-list=arm-softmmu
             - run:
+                name: "make"
                 command: |
                     make
             - run:
+                name: "make check"
+                command: |
+                    make check
+            - run:
+                name: "check patch"
                 command: |
                     git remote add upstream https://github.com/qemu/qemu
                     git fetch upstream
                     ./scripts/checkpatch.pl --branch $(git merge-base upstream/master master)...master
-            - run:
-                command: |
-                    make check
+
 workflows:
     version: 2.1
     everything:
