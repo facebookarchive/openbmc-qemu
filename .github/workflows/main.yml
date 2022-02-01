@@ -1,0 +1,22 @@
+name: Main
+on: push
+jobs:
+  Build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y ninja-build pkg-config libglib2.0-dev libpixman-1-dev
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Configure
+        run: ./configure --target-list=arm-softmmu
+      - name: Make
+        run: make
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            ./build/qemu-system-arm
