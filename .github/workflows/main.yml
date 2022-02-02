@@ -11,7 +11,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Configure
-        run: ./configure --target-list=arm-softmmu
+        run: ./configure --target-list=arm-softmmu --disable-vnc --disable-curses --disable-sdl
       - name: Make
         run: make
       - name: Release
