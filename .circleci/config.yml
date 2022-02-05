@@ -26,12 +26,6 @@ jobs:
                 name: "make check"
                 command: |
                     make check
-            - run:
-                name: "check patch"
-                command: |
-                    git remote add upstream https://github.com/qemu/qemu
-                    git fetch upstream
-                    ./scripts/checkpatch.pl --branch $(git merge-base upstream/master master)...master
 
 workflows:
     version: 2.1
