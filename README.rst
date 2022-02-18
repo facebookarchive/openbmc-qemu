@@ -2,7 +2,8 @@
 Facebook OpenBMC QEMU README
 ============================
 
-Build QEMU first:
+Building QEMU
+=============
 
 .. code-block:: shell
 
@@ -81,7 +82,8 @@ And then you can ssh in:
 
   sshpass -p 0penBmc ssh root@localhost -p 2222
 
-TUN/TAP configuration:
+TUN/TAP configuration
+=====================
 
 .. code-block:: shell
 
@@ -108,7 +110,8 @@ TUN/TAP configuration:
   ping6 fe80::8c0c:2dff:fe76:b86b%bmc-br0
   sshpass -p 0penBmc ssh root@fe80::8c0c:2dff:fe76:b86b%bmc-br0
 
-# `macvtap` configuration
+`macvtap` configuration
+=======================
 
 .. code-block:: shell
 
@@ -129,7 +132,8 @@ TUN/TAP configuration:
     -net nic,netdev=macvtap0,macaddr=$MACVTAP0_ADDR,model=ftgmac100 \
     3<>$MACVTAP0_DEV
 
-Debugging with GDB:
+Debugging with GDB
+==================
 
 .. code-block:: shell
 
@@ -253,7 +257,8 @@ Debugging with GDB:
   # (gdb) b ast_adc_probe
   # (gdb) c
 
-Testing temperature sensors:
+Testing temperature sensors
+===========================
 
 You can change the value of a temperature sensor, and many other kinds
 of device attributes that QEMU emulates, through the QEMU monitor. Use
