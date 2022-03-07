@@ -15,6 +15,7 @@
 #include "hw/arm/aspeed.h"
 #include "hw/arm/aspeed_soc.h"
 #include "hw/i2c/i2c_mux_pca954x.h"
+#include "hw/i2c/net_i2c.h"
 #include "hw/i2c/smbus_eeprom.h"
 #include "hw/misc/pca9552.h"
 #include "hw/sensor/tmp105.h"
@@ -952,6 +953,11 @@ static void wedge100_i2c_init(AspeedMachineState *bmc)
     i2c_slave_create_simple(i2c[8], TYPE_TMP75, 0x49);
 }
 
+static void clearcreek_i2c_init(AspeedMachineState *bmc)
+{
+    i2c_slave_create_simple(aspeed_i2c_get_bus(&bmc->soc.i2c, 8), TYPE_NET_I2C, 0x32);
+}
+
 static bool aspeed_get_mmio_exec(Object *obj, Error **errp)
 {
     return ASPEED_MACHINE(obj)->mmio_exec;
@@ -1494,6 +1500,7 @@ static void aspeed_machine_clearcreek_class_init(ObjectClass *oc, void *data)
     amc->spi_model = FB_FLASH_MODEL_32MB;
     amc->num_cs = 2;
     amc->macs_mask = ASPEED_MAC0_ON | ASPEED_MAC1_ON;
+    amc->i2c_init = clearcreek_i2c_init;
     mc->default_ram_size = 512 * MiB;
     mc->default_cpus = mc->min_cpus = mc->max_cpus =
         aspeed_soc_num_cpus(amc->soc_name);
