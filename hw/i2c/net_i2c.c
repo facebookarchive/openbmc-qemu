@@ -26,6 +26,15 @@ enum {
     NET_I2C_CONFUSED = -1
 };
 
+static void net_i2c_do_write(NetI2C *dev)
+{
+    NetClientState *nc = qemu_get_queue(dev->nic);
+
+    DPRINTF("Command %d len %d\n", dev->data_buf[0], dev->data_len);
+    ssize_t size = qemu_send_packet(nc, dev->data_buf, dev->data_len);
+    assert(size == dev->data_len);
+}
+
 static int net_i2c_event(I2CSlave *s, enum i2c_event event)
 {
     NetI2C *dev = NET_I2C(s);
@@ -53,8 +62,14 @@ static int net_i2c_event(I2CSlave *s, enum i2c_event event)
             break;
 
         case NET_I2C_WRITE_DATA:
-            DPRINTF("Read mode\n");
-            dev->mode = NET_I2C_READ_DATA;
+            if (dev->data_len == 0) {
+                BADF("Read after write with no data\n");
+                dev->mode = NET_I2C_CONFUSED;
+            } else {
+                net_i2c_do_write(dev);
+                DPRINTF("Read mode\n");
+                dev->mode = NET_I2C_READ_DATA;
+            }
             break;
 
         default:
@@ -66,6 +81,10 @@ static int net_i2c_event(I2CSlave *s, enum i2c_event event)
 
     case I2C_FINISH:
         switch (dev->mode) {
+        case NET_I2C_WRITE_DATA:
+                net_i2c_do_write(dev);
+                break;
+
         case NET_I2C_READ_DATA:
             BADF("Unexpected stop during receive\n");
             break;
@@ -75,6 +94,7 @@ static int net_i2c_event(I2CSlave *s, enum i2c_event event)
             break;
         }
         dev->mode = NET_I2C_IDLE;
+        dev->data_len = 0;
         break;
 
     case I2C_NACK:
@@ -123,14 +143,15 @@ static uint8_t net_i2c_recv(I2CSlave *s)
 static int net_i2c_send(I2CSlave *s, uint8_t data)
 {
     NetI2C *dev = NET_I2C(s);
-    NetClientState *nc = qemu_get_queue(dev->nic);
-    ssize_t size;
 
     switch (dev->mode) {
     case NET_I2C_WRITE_DATA:
         DPRINTF("Write data %02x\n", data);
-        size = qemu_send_packet(nc, &data, 1);
-        assert(size == 1);
+        if (dev->data_len >= sizeof(dev->data_buf)) {
+            BADF("Too many bytes sent\n");
+        } else {
+            dev->data_buf[dev->data_len++] = data;
+        }
         break;
 
     default:
