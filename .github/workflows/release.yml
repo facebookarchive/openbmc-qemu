@@ -1,0 +1,66 @@
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag'
+        required: True
+name: Create release
+jobs:
+  create_release:
+    name: Create release
+    runs-on: ubuntu-20.04
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+      - name: Create release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.event.inputs.tag }}
+          release_name: ${{ github.event.inputs.tag }}
+          draft: false
+          prerelease: false
+  build_qemu_executable:
+    name: Build QEMU
+    strategy:
+      matrix:
+        os: [ubuntu, centos8]
+    runs-on: ubuntu-20.04
+    container:
+      image: peterdelevoryas/${{ matrix.os }}-qemu
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Configure
+        run: ./configure --target-list=arm-softmmu --disable-vnc --disable-curses --disable-sdl
+      - name: Make
+        run: make -j $(nproc)
+      - name: Upload QEMU executable
+        uses: actions/upload-artifact@v3
+        with:
+          name: qemu-system-arm.${{ matrix.os }}
+          path: build/qemu-system-arm
+  upload_qemu_executable:
+    name: Upload QEMU binary to release assets
+    strategy:
+      matrix:
+        os: [ubuntu, centos8]
+    needs: [build_qemu_executable, create_release]
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Download QEMU binary
+        id: download
+        uses: actions/download-artifact@v3
+        with:
+          name: qemu-system-arm.${{ matrix.os }}
+      - name: Upload QEMU Executable
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
+          asset_path: ${{ steps.download.outputs.download-path }}/qemu-system-arm
+          asset_name: qemu-system-arm.${{ matrix.os }}
+          asset_content_type: application/octet-stream
