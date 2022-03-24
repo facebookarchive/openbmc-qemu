@@ -29,6 +29,7 @@
 #define TYPE_ASPEED_2400_I2C TYPE_ASPEED_I2C "-ast2400"
 #define TYPE_ASPEED_2500_I2C TYPE_ASPEED_I2C "-ast2500"
 #define TYPE_ASPEED_2600_I2C TYPE_ASPEED_I2C "-ast2600"
+#define TYPE_ASPEED_1030_I2C TYPE_ASPEED_I2C "-ast1030"
 OBJECT_DECLARE_TYPE(AspeedI2CState, AspeedI2CClass, ASPEED_I2C)
 
 #define ASPEED_I2C_NR_BUSSES 16
@@ -58,6 +59,12 @@ struct AspeedI2CBus {
     uint32_t pool_ctrl;
     uint32_t dma_addr;
     uint32_t dma_len;
+
+    uint8_t tx_state_machine;
+    uint32_t intr_ctrl_slave;
+    uint32_t intr_status_slave;
+    uint32_t dma_len_tx;
+    uint32_t dma_len_rx;
 };
 
 struct AspeedI2CState {
@@ -68,6 +75,7 @@ struct AspeedI2CState {
 
     uint32_t intr_status;
     uint32_t ctrl_global;
+    uint32_t new_divider;
     MemoryRegion pool_iomem;
     uint8_t pool[ASPEED_I2C_MAX_POOL_SIZE];
 
