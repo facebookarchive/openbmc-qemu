@@ -992,7 +992,47 @@ static void wedge100_i2c_init(AspeedMachineState *bmc)
 
 static void clearcreek_i2c_init(AspeedMachineState *bmc)
 {
-    i2c_slave_create_simple(aspeed_i2c_get_bus(&bmc->soc.i2c, 8), TYPE_NET_I2C, 0x32);
+    I2CBus *i2c[24];
+    for (int i = 0; i < 14; i++) {
+        i2c[i] = aspeed_i2c_get_bus(&bmc->soc.i2c, i);
+    }
+    get_pca9548_channels(i2c[3], 0x70, &i2c[16]);
+
+    i2c_slave_create_simple(i2c[21], TYPE_TMP75, 0x48);
+    i2c_slave_create_simple(i2c[21], TYPE_TMP75, 0x49);
+    i2c_slave_create_simple(i2c[21], "fancpld", 0x1d); // adc128d818
+    i2c_slave_create_simple(i2c[21], "fancpld", 0x1f); // adc128d818
+
+    i2c_slave_create_simple(i2c[22], TYPE_TMP75, 0x48);
+    i2c_slave_create_simple(i2c[22], TYPE_TMP75, 0x49);
+    i2c_slave_create_simple(i2c[22], "fancpld", 0x1d); // adc128d818
+    i2c_slave_create_simple(i2c[22], "fancpld", 0x1f); // adc128d818
+
+    static uint8_t carrier_eeprom[256];
+    memset(carrier_eeprom, 0xcc, sizeof(carrier_eeprom));
+    smbus_eeprom_init_one(i2c[23], 0x17, carrier_eeprom);
+
+    i2c_slave_create_simple(i2c[21], "fancpld", 0x45);
+    i2c_slave_create_simple(i2c[21], "fancpld", 0x77);
+    i2c_slave_create_simple(i2c[22], "fancpld", 0x45);
+    i2c_slave_create_simple(i2c[22], "fancpld", 0x77);
+
+    i2c_slave_create_simple(i2c[8], "fancpld", 0x77);
+    i2c_slave_create_simple(i2c[5], "fancpld", 0x77);
+    i2c_slave_create_simple(i2c[5], "fancpld", 0x11);
+    i2c_slave_create_simple(i2c[6], "fancpld", 0x51);
+
+    aspeed_eeprom_init(i2c[1], 0x50, 32 * KiB);
+    aspeed_eeprom_init(i2c[2], 0x50, 32 * KiB);
+    aspeed_eeprom_init(i2c[4], 0x50, 32 * KiB);
+    aspeed_eeprom_init(i2c[7], 0x50, 32 * KiB);
+    aspeed_eeprom_init(i2c[9], 0x50, 32 * KiB);
+    aspeed_eeprom_init(i2c[10], 0x50, 32 * KiB);
+    aspeed_eeprom_init(i2c[11], 0x50, 32 * KiB);
+
+    i2c_slave_create_simple(i2c[13], "fancpld", 0x50);
+    i2c_slave_create_simple(i2c[3], "fancpld", 0x50);
+    i2c_slave_create_simple(i2c[3], "fancpld", 0x2c);
 }
 
 static bool aspeed_get_mmio_exec(Object *obj, Error **errp)
