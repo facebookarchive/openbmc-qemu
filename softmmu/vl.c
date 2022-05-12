@@ -934,10 +934,12 @@ static const VGAInterfaceInfo vga_interfaces[VGA_TYPE_MAX] = {
         .name = "CG3 framebuffer",
         .class_names = { "cgthree" },
     },
+#ifdef CONFIG_XEN_BACKEND
     [VGA_XENFB] = {
         .opt_name = "xenfb",
         .name = "Xen paravirtualized framebuffer",
     },
+#endif
 };
 
 static bool vga_interface_available(VGAInterfaceType t)
@@ -1351,6 +1353,7 @@ static void qemu_disable_default_devices(void)
 
     if (!vga_model && !default_vga) {
         vga_interface_type = VGA_DEVICE;
+        vga_interface_created = true;
     }
     if (!has_defaults || machine_class->no_serial) {
         default_serial = 0;
@@ -2734,6 +2737,12 @@ static void qemu_machine_creation_done(void)
     if (foreach_device_config(DEV_GDB, gdbserver_start) < 0) {
         exit(1);
     }
+    if (!vga_interface_created && !default_vga &&
+        vga_interface_type != VGA_NONE) {
+        warn_report("A -vga option was passed but this machine "
+                    "type does not use that option; "
+                    "No VGA device has been created");
+    }
 }
 
 void qmp_x_exit_preconfig(Error **errp)
@@ -3551,26 +3560,6 @@ void qemu_init(int argc, char **argv, char **envp)
                 display_remote++;
                 break;
 #endif
-            case QEMU_OPTION_writeconfig:
-                {
-                    FILE *fp;
-                    warn_report("-writeconfig is deprecated and will go away without a replacement");
-                    if (strcmp(optarg, "-") == 0) {
-                        fp = stdout;
-                    } else {
-                        fp = fopen(optarg, "w");
-                        if (fp == NULL) {
-                            error_report("open %s: %s", optarg,
-                                         strerror(errno));
-                            exit(1);
-                        }
-                    }
-                    qemu_config_write(fp);
-                    if (fp != stdout) {
-                        fclose(fp);
-                    }
-                    break;
-                }
             case QEMU_OPTION_qtest:
                 qtest_chrdev = optarg;
                 break;

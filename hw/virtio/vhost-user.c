@@ -51,7 +51,7 @@
 #include "hw/acpi/acpi.h"
 #define VHOST_USER_MAX_RAM_SLOTS ACPI_MAX_RAM_SLOTS
 
-#elif defined(TARGET_PPC) || defined(TARGET_PPC_64)
+#elif defined(TARGET_PPC) || defined(TARGET_PPC64)
 #include "hw/ppc/spapr.h"
 #define VHOST_USER_MAX_RAM_SLOTS SPAPR_MAX_RAM_SLOTS
 
@@ -751,7 +751,7 @@ static int send_remove_regions(struct vhost_dev *dev,
             vhost_user_fill_msg_region(&region_buffer, shadow_reg, 0);
             msg->payload.mem_reg.region = region_buffer;
 
-            ret = vhost_user_write(dev, msg, &fd, 1);
+            ret = vhost_user_write(dev, msg, NULL, 0);
             if (ret < 0) {
                 return ret;
             }
@@ -1826,7 +1826,7 @@ static int vhost_user_postcopy_advise(struct vhost_dev *dev, Error **errp)
         error_setg(errp, "%s: Failed to get ufd", __func__);
         return -EIO;
     }
-    qemu_set_nonblock(ufd);
+    qemu_socket_set_nonblock(ufd);
 
     /* register ufd with userfault thread */
     u->postcopy_fd.fd = ufd;

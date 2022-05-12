@@ -9,10 +9,11 @@
  * See the COPYING file in the top-level directory.
  *
  */
-#ifndef MIGRATION_HELPERS_H_
-#define MIGRATION_HELPERS_H_
 
-#include "libqos/libqtest.h"
+#ifndef MIGRATION_HELPERS_H
+#define MIGRATION_HELPERS_H
+
+#include "libqtest.h"
 
 extern bool got_stop;
 
@@ -34,4 +35,4 @@ void wait_for_migration_complete(QTestState *who);
 
 void wait_for_migration_fail(QTestState *from, bool allow_active);
 
-#endif /* MIGRATION_HELPERS_H_ */
+#endif /* MIGRATION_HELPERS_H */

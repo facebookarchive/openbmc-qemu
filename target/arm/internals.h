@@ -81,6 +81,18 @@ FIELD(V7M_EXCRET, RES1, 7, 25) /* including the must-be-1 prefix */
  */
 #define FNC_RETURN_MIN_MAGIC 0xfefffffe
 
+/* Bit definitions for DBGWCRn and DBGWCRn_EL1 */
+FIELD(DBGWCR, E, 0, 1)
+FIELD(DBGWCR, PAC, 1, 2)
+FIELD(DBGWCR, LSC, 3, 2)
+FIELD(DBGWCR, BAS, 5, 8)
+FIELD(DBGWCR, HMC, 13, 1)
+FIELD(DBGWCR, SSC, 14, 2)
+FIELD(DBGWCR, LBN, 16, 4)
+FIELD(DBGWCR, WT, 20, 1)
+FIELD(DBGWCR, MASK, 24, 5)
+FIELD(DBGWCR, SSCE, 29, 1)
+
 /* We use a few fake FSR values for internal purposes in M profile.
  * M profile cores don't have A/R format FSRs, but currently our
  * get_phys_addr() code assumes A/R profile and reports failures via
@@ -936,6 +948,14 @@ void arm_cpu_update_virq(ARMCPU *cpu);
 void arm_cpu_update_vfiq(ARMCPU *cpu);
 
 /**
+ * arm_cpu_update_vserr: Update CPU_INTERRUPT_VSERR bit
+ *
+ * Update the CPU_INTERRUPT_VSERR bit in cs->interrupt_request,
+ * following a change to the HCR_EL2.VSE bit.
+ */
+void arm_cpu_update_vserr(ARMCPU *cpu);
+
+/**
  * arm_mmu_idx_el:
  * @env: The cpu environment
  * @el: The EL to use.
@@ -1294,5 +1314,13 @@ int arm_gdb_set_svereg(CPUARMState *env, uint8_t *buf, int reg);
 int aarch64_fpu_gdb_get_reg(CPUARMState *env, GByteArray *buf, int reg);
 int aarch64_fpu_gdb_set_reg(CPUARMState *env, uint8_t *buf, int reg);
 #endif
+
+#ifdef CONFIG_USER_ONLY
+static inline void define_cortex_a72_a57_a53_cp_reginfo(ARMCPU *cpu) { }
+#else
+void define_cortex_a72_a57_a53_cp_reginfo(ARMCPU *cpu);
+#endif
+
+void aa32_max_features(ARMCPU *cpu);
 
 #endif

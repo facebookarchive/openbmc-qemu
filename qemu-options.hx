@@ -4176,7 +4176,9 @@ SRST
 ERST
 
 DEF("enable-kvm", 0, QEMU_OPTION_enable_kvm, \
-    "-enable-kvm     enable KVM full virtualization support\n", QEMU_ARCH_ALL)
+    "-enable-kvm     enable KVM full virtualization support\n",
+    QEMU_ARCH_ARM | QEMU_ARCH_I386 | QEMU_ARCH_MIPS | QEMU_ARCH_PPC |
+    QEMU_ARCH_RISCV | QEMU_ARCH_S390X)
 SRST
 ``-enable-kvm``
     Enable KVM full virtualization support. This option is only
@@ -4184,16 +4186,17 @@ SRST
 ERST
 
 DEF("xen-domid", HAS_ARG, QEMU_OPTION_xen_domid,
-    "-xen-domid id   specify xen guest domain id\n", QEMU_ARCH_ALL)
+    "-xen-domid id   specify xen guest domain id\n",
+    QEMU_ARCH_ARM | QEMU_ARCH_I386)
 DEF("xen-attach", 0, QEMU_OPTION_xen_attach,
     "-xen-attach     attach to existing xen domain\n"
     "                libxl will use this when starting QEMU\n",
-    QEMU_ARCH_ALL)
+    QEMU_ARCH_ARM | QEMU_ARCH_I386)
 DEF("xen-domid-restrict", 0, QEMU_OPTION_xen_domid_restrict,
     "-xen-domid-restrict     restrict set of available xen operations\n"
     "                        to specified domain id. (Does not affect\n"
     "                        xenpv machine type).\n",
-    QEMU_ARCH_ALL)
+    QEMU_ARCH_ARM | QEMU_ARCH_I386)
 SRST
 ``-xen-domid id``
     Specify xen guest domain id (XEN only).
@@ -4622,17 +4625,13 @@ SRST
 ERST
 
 DEF("readconfig", HAS_ARG, QEMU_OPTION_readconfig,
-    "-readconfig <file>\n", QEMU_ARCH_ALL)
+    "-readconfig <file>\n"
+    "                read config file\n", QEMU_ARCH_ALL)
 SRST
 ``-readconfig file``
     Read device configuration from file. This approach is useful when
     you want to spawn QEMU process with many command line options but
     you don't want to exceed the command line character limit.
-ERST
-DEF("writeconfig", HAS_ARG, QEMU_OPTION_writeconfig,
-    "-writeconfig <file>\n"
-    "                read/write config file (deprecated)\n", QEMU_ARCH_ALL)
-SRST
 ERST
 
 DEF("no-user-config", 0, QEMU_OPTION_nouserconfig,

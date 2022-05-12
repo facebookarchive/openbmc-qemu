@@ -1,6 +1,6 @@
 project('qemu', ['c'], meson_version: '>=0.59.3',
         default_options: ['warning_level=1', 'c_std=gnu11', 'cpp_std=gnu++11', 'b_colorout=auto',
-                          'b_staticpic=false', 'stdsplit=false'],
+                          'b_staticpic=false', 'stdsplit=false', 'optimization=2', 'b_pie=true'],
         version: files('VERSION'))
 
 add_test_setup('quick', exclude_suites: ['slow', 'thorough'], is_default: true)
@@ -167,6 +167,12 @@ if 'dtrace' in get_option('trace_backends')
   endif
 endif
 
+if get_option('iasl') == ''
+  iasl = find_program('iasl', required: false)
+else
+  iasl = find_program(get_option('iasl'), required: true)
+endif
+
 ##################
 # Compiler flags #
 ##################
@@ -175,6 +181,14 @@ qemu_cflags = config_host['QEMU_CFLAGS'].split()
 qemu_cxxflags = config_host['QEMU_CXXFLAGS'].split()
 qemu_objcflags = config_host['QEMU_OBJCFLAGS'].split()
 qemu_ldflags = config_host['QEMU_LDFLAGS'].split()
+
+if targetos == 'windows'
+  qemu_ldflags += cc.get_supported_link_arguments('-Wl,--no-seh', '-Wl,--nxcompat')
+  # Disable ASLR for debug builds to allow debugging with gdb
+  if get_option('optimization') == '0'
+    qemu_ldflags += cc.get_supported_link_arguments('-Wl,--dynamicbase')
+  endif
+endif
 
 if get_option('gprof')
   qemu_cflags += ['-p']
@@ -298,6 +312,28 @@ have_tpm = get_option('tpm') \
   .require(targetos != 'windows', error_message: 'TPM emulation only available on POSIX systems') \
   .allowed()
 
+# vhost
+have_vhost_user = get_option('vhost_user') \
+  .disable_auto_if(targetos != 'linux') \
+  .require(targetos != 'windows',
+           error_message: 'vhost-user is not available on Windows').allowed()
+have_vhost_vdpa = get_option('vhost_vdpa') \
+  .require(targetos == 'linux',
+           error_message: 'vhost-vdpa is only available on Linux').allowed()
+have_vhost_kernel = get_option('vhost_kernel') \
+  .require(targetos == 'linux',
+           error_message: 'vhost-kernel is only available on Linux').allowed()
+have_vhost_user_crypto = get_option('vhost_crypto') \
+  .require(have_vhost_user,
+           error_message: 'vhost-crypto requires vhost-user to be enabled').allowed()
+
+have_vhost = have_vhost_user or have_vhost_vdpa or have_vhost_kernel
+
+have_vhost_net_user = have_vhost_user and get_option('vhost_net').allowed()
+have_vhost_net_vdpa = have_vhost_vdpa and get_option('vhost_net').allowed()
+have_vhost_net_kernel = have_vhost_kernel and get_option('vhost_net').allowed()
+have_vhost_net = have_vhost_net_kernel or have_vhost_net_user or have_vhost_net_vdpa
+
 # Target-specific libraries and flags
 libm = cc.find_library('m', required: false)
 threads = dependency('threads')
@@ -347,12 +383,6 @@ endif
 accelerators = []
 if get_option('kvm').allowed() and targetos == 'linux'
   accelerators += 'CONFIG_KVM'
-endif
-if get_option('xen').allowed() and 'CONFIG_XEN_BACKEND' in config_host
-  accelerators += 'CONFIG_XEN'
-  have_xen_pci_passthrough = get_option('xen_pci_passthrough').allowed() and targetos == 'linux'
-else
-  have_xen_pci_passthrough = false
 endif
 if get_option('whpx').allowed() and targetos == 'windows'
   if get_option('whpx').enabled() and host_machine.cpu() != 'x86_64'
@@ -425,13 +455,6 @@ endif
 if 'CONFIG_WHPX' not in accelerators and get_option('whpx').enabled()
   error('WHPX not available on this platform')
 endif
-if not have_xen_pci_passthrough and get_option('xen_pci_passthrough').enabled()
-  if 'CONFIG_XEN' in accelerators
-    error('Xen PCI passthrough not available on this platform')
-  else
-    error('Xen PCI passthrough requested but Xen not enabled')
-  endif
-endif
 
 ################
 # Dependencies #
@@ -448,11 +471,32 @@ glib = declare_dependency(compile_args: config_host['GLIB_CFLAGS'].split(),
 meson.override_dependency('glib-2.0', glib)
 
 gio = not_found
-if 'CONFIG_GIO' in config_host
-  gio = declare_dependency(compile_args: config_host['GIO_CFLAGS'].split(),
-                           link_args: config_host['GIO_LIBS'].split(),
-                           version: config_host['GLIB_VERSION'])
+gdbus_codegen = not_found
+if not get_option('gio').auto() or have_system
+  gio = dependency('gio-2.0', required: get_option('gio'),
+                   method: 'pkg-config', kwargs: static_kwargs)
+  if gio.found() and not cc.links('''
+    #include <gio/gio.h>
+    int main(void)
+    {
+      g_dbus_proxy_new_sync(0, 0, 0, 0, 0, 0, 0, 0);
+      return 0;
+    }''', dependencies: [glib, gio])
+    if get_option('gio').enabled()
+      error('The installed libgio is broken for static linking')
+    endif
+    gio = not_found
+  endif
+  if gio.found()
+    gdbus_codegen = find_program(gio.get_variable('gdbus_codegen'),
+                                 required: get_option('gio'))
+    gio_unix = dependency('gio-unix-2.0', required: get_option('gio'),
+                          method: 'pkg-config', kwargs: static_kwargs)
+    gio = declare_dependency(dependencies: [gio, gio_unix],
+                             version: gio.version())
+  endif
 endif
+
 lttng = not_found
 if 'ust' in get_option('trace_backends')
   lttng = dependency('lttng-ust', required: true, version: '>= 2.1',
@@ -1000,9 +1044,14 @@ if not get_option('coreaudio').auto() or (targetos == 'darwin' and have_system)
 endif
 
 opengl = not_found
-if 'CONFIG_OPENGL' in config_host
-  opengl = declare_dependency(compile_args: config_host['OPENGL_CFLAGS'].split(),
-                              link_args: config_host['OPENGL_LIBS'].split())
+if not get_option('opengl').auto() or have_system or have_vhost_user_gpu
+  epoxy = dependency('epoxy', method: 'pkg-config',
+                      required: get_option('opengl'), kwargs: static_kwargs)
+  if cc.has_header('epoxy/egl.h', dependencies: epoxy)
+    opengl = epoxy
+  elif get_option('opengl').enabled()
+    error('epoxy/egl.h not found')
+  endif
 endif
 gbm = not_found
 if (have_system or have_tools) and (virgl.found() or opengl.found())
@@ -1214,14 +1263,103 @@ if numa.found() and not cc.links('''
 endif
 
 rdma = not_found
-if 'CONFIG_RDMA' in config_host
-  rdma = declare_dependency(link_args: config_host['RDMA_LIBS'].split())
+if not get_option('rdma').auto() or have_system
+  libumad = cc.find_library('ibumad', required: get_option('rdma'))
+  rdma_libs = [cc.find_library('rdmacm', has_headers: ['rdma/rdma_cma.h'],
+                               required: get_option('rdma'),
+                               kwargs: static_kwargs),
+               cc.find_library('ibverbs', required: get_option('rdma'),
+                               kwargs: static_kwargs),
+               libumad]
+  rdma = declare_dependency(dependencies: rdma_libs)
+  foreach lib: rdma_libs
+    if not lib.found()
+      rdma = not_found
+    endif
+  endforeach
 endif
+
 xen = not_found
-if 'CONFIG_XEN_BACKEND' in config_host
-  xen = declare_dependency(compile_args: config_host['XEN_CFLAGS'].split(),
-                           link_args: config_host['XEN_LIBS'].split())
+if get_option('xen').enabled() or (get_option('xen').auto() and have_system)
+  xencontrol = dependency('xencontrol', required: false,
+                          method: 'pkg-config', kwargs: static_kwargs)
+  if xencontrol.found()
+    xen_pc = declare_dependency(version: xencontrol.version(),
+      dependencies: [
+        xencontrol,
+        # disabler: true makes xen_pc.found() return false if any is not found
+        dependency('xenstore', required: false,
+                   method: 'pkg-config', kwargs: static_kwargs,
+                   disabler: true),
+        dependency('xenforeignmemory', required: false,
+                   method: 'pkg-config', kwargs: static_kwargs,
+                   disabler: true),
+        dependency('xengnttab', required: false,
+                   method: 'pkg-config', kwargs: static_kwargs,
+                   disabler: true),
+        dependency('xenevtchn', required: false,
+                   method: 'pkg-config', kwargs: static_kwargs,
+                   disabler: true),
+        dependency('xendevicemodel', required: false,
+                   method: 'pkg-config', kwargs: static_kwargs,
+                   disabler: true),
+        # optional, no "disabler: true"
+        dependency('xentoolcore', required: false,
+                   method: 'pkg-config', kwargs: static_kwargs)])
+    if xen_pc.found()
+      xen = xen_pc
+    endif
+  endif
+  if not xen.found()
+    xen_tests = [ '4.11.0', '4.10.0', '4.9.0', '4.8.0', '4.7.1', '4.6.0', '4.5.0', '4.2.0' ]
+    xen_libs = {
+      '4.11.0': [ 'xenstore', 'xenctrl', 'xendevicemodel', 'xenforeignmemory', 'xengnttab', 'xenevtchn', 'xentoolcore' ],
+      '4.10.0': [ 'xenstore', 'xenctrl', 'xendevicemodel', 'xenforeignmemory', 'xengnttab', 'xenevtchn', 'xentoolcore' ],
+      '4.9.0': [ 'xenstore', 'xenctrl', 'xendevicemodel', 'xenforeignmemory', 'xengnttab', 'xenevtchn' ],
+      '4.8.0': [ 'xenstore', 'xenctrl', 'xenforeignmemory', 'xengnttab', 'xenevtchn' ],
+      '4.7.1': [ 'xenstore', 'xenctrl', 'xenforeignmemory', 'xengnttab', 'xenevtchn' ],
+      '4.6.0': [ 'xenstore', 'xenctrl' ],
+      '4.5.0': [ 'xenstore', 'xenctrl' ],
+      '4.2.0': [ 'xenstore', 'xenctrl' ],
+    }
+    xen_deps = {}
+    foreach ver: xen_tests
+      # cache the various library tests to avoid polluting the logs
+      xen_test_deps = []
+      foreach l: xen_libs[ver]
+        if l not in xen_deps
+          xen_deps += { l: cc.find_library(l, required: false) }
+        endif
+        xen_test_deps += xen_deps[l]
+      endforeach
+
+      # Use -D to pick just one of the test programs in scripts/xen-detect.c
+      xen_version = ver.split('.')
+      xen_ctrl_version = xen_version[0] + \
+        ('0' + xen_version[1]).substring(-2) + \
+        ('0' + xen_version[2]).substring(-2)
+      if cc.links(files('scripts/xen-detect.c'),
+                  args: '-DCONFIG_XEN_CTRL_INTERFACE_VERSION=' + xen_ctrl_version,
+                  dependencies: xen_test_deps)
+        xen = declare_dependency(version: ver, dependencies: xen_test_deps)
+        break
+      endif
+    endforeach
+  endif
+  if xen.found()
+    accelerators += 'CONFIG_XEN'
+  elif get_option('xen').enabled()
+    error('could not compile and link Xen test program')
+  endif
 endif
+have_xen_pci_passthrough = get_option('xen_pci_passthrough') \
+  .require(xen.found(),
+           error_message: 'Xen PCI passthrough requested but Xen not enabled') \
+  .require(targetos == 'linux',
+           error_message: 'Xen PCI passthrough not available on this platform') \
+  .allowed()
+
+
 cacard = not_found
 if not get_option('smartcard').auto() or have_system
   cacard = dependency('libcacard', required: get_option('smartcard'),
@@ -1326,7 +1464,7 @@ has_statx_mnt_id = cc.links(statx_mnt_id_test)
 have_vhost_user_blk_server = get_option('vhost_user_blk_server') \
   .require(targetos == 'linux',
            error_message: 'vhost_user_blk_server requires linux') \
-  .require('CONFIG_VHOST_USER' in config_host,
+  .require(have_vhost_user,
            error_message: 'vhost_user_blk_server requires vhost-user support') \
   .disable_auto_if(not have_system) \
   .allowed()
@@ -1462,7 +1600,7 @@ dbus_display = get_option('dbus_display') \
            error_message: '-display dbus requires glib>=2.64') \
   .require(enable_modules,
            error_message: '-display dbus requires --enable-modules') \
-  .require(config_host.has_key('GDBUS_CODEGEN'),
+  .require(gdbus_codegen.found(),
            error_message: '-display dbus requires gdbus-codegen') \
   .allowed()
 
@@ -1478,25 +1616,47 @@ have_virtfs = get_option('virtfs') \
 
 have_virtfs_proxy_helper = targetos != 'darwin' and have_virtfs and have_tools
 
+if get_option('block_drv_ro_whitelist') == ''
+  config_host_data.set('CONFIG_BDRV_RO_WHITELIST', '')
+else
+  config_host_data.set('CONFIG_BDRV_RO_WHITELIST',
+        '"' + get_option('block_drv_ro_whitelist').replace(',', '", "') + '", ')
+endif
+if get_option('block_drv_rw_whitelist') == ''
+  config_host_data.set('CONFIG_BDRV_RW_WHITELIST', '')
+else
+  config_host_data.set('CONFIG_BDRV_RW_WHITELIST',
+        '"' + get_option('block_drv_rw_whitelist').replace(',', '", "') + '", ')
+endif
+
 foreach k : get_option('trace_backends')
   config_host_data.set('CONFIG_TRACE_' + k.to_upper(), true)
 endforeach
 config_host_data.set_quoted('CONFIG_TRACE_FILE', get_option('trace_file'))
-if get_option('iasl') != ''
-  config_host_data.set_quoted('CONFIG_IASL', get_option('iasl'))
+config_host_data.set_quoted('CONFIG_TLS_PRIORITY', get_option('tls_priority'))
+if iasl.found()
+  config_host_data.set_quoted('CONFIG_IASL', iasl.full_path())
 endif
 config_host_data.set_quoted('CONFIG_BINDIR', get_option('prefix') / get_option('bindir'))
 config_host_data.set_quoted('CONFIG_PREFIX', get_option('prefix'))
 config_host_data.set_quoted('CONFIG_QEMU_CONFDIR', get_option('prefix') / qemu_confdir)
 config_host_data.set_quoted('CONFIG_QEMU_DATADIR', get_option('prefix') / qemu_datadir)
 config_host_data.set_quoted('CONFIG_QEMU_DESKTOPDIR', get_option('prefix') / qemu_desktopdir)
-config_host_data.set_quoted('CONFIG_QEMU_FIRMWAREPATH', get_option('qemu_firmwarepath'))
+config_host_data.set_quoted('CONFIG_QEMU_FIRMWAREPATH', get_option('prefix') / get_option('qemu_firmwarepath'))
 config_host_data.set_quoted('CONFIG_QEMU_HELPERDIR', get_option('prefix') / get_option('libexecdir'))
 config_host_data.set_quoted('CONFIG_QEMU_ICONDIR', get_option('prefix') / qemu_icondir)
 config_host_data.set_quoted('CONFIG_QEMU_LOCALEDIR', get_option('prefix') / get_option('localedir'))
 config_host_data.set_quoted('CONFIG_QEMU_LOCALSTATEDIR', get_option('prefix') / get_option('localstatedir'))
 config_host_data.set_quoted('CONFIG_QEMU_MODDIR', get_option('prefix') / qemu_moddir)
 config_host_data.set_quoted('CONFIG_SYSCONFDIR', get_option('prefix') / get_option('sysconfdir'))
+
+if config_host.has_key('CONFIG_MODULES')
+  config_host_data.set('CONFIG_STAMP', run_command(
+      meson.current_source_dir() / 'scripts/qemu-stamp.py',
+      meson.project_version(), get_option('pkgversion'), '--',
+      meson.current_source_dir() / 'configure',
+      capture: true, check: true).stdout().strip())
+endif
 
 have_slirp_smbd = get_option('slirp_smbd') \
   .require(targetos != 'windows', error_message: 'Host smbd not supported on this platform.') \
@@ -1511,6 +1671,11 @@ endif
 
 config_host_data.set('HOST_' + host_arch.to_upper(), 1)
 
+if get_option('module_upgrades') and not enable_modules
+  error('Cannot enable module-upgrades as modules are not enabled')
+endif
+config_host_data.set('CONFIG_MODULE_UPGRADES', get_option('module_upgrades'))
+
 config_host_data.set('CONFIG_ATTR', libattr.found())
 config_host_data.set('CONFIG_BDRV_WHITELIST_TOOLS', get_option('block_drv_whitelist_in_tools'))
 config_host_data.set('CONFIG_BRLAPI', brlapi.found())
@@ -1524,6 +1689,7 @@ config_host_data.set('CONFIG_MPATH_NEW_API', mpathpersist_new_api)
 config_host_data.set('CONFIG_CURL', curl.found())
 config_host_data.set('CONFIG_CURSES', curses.found())
 config_host_data.set('CONFIG_GBM', gbm.found())
+config_host_data.set('CONFIG_GIO', gio.found())
 config_host_data.set('CONFIG_GLUSTERFS', glusterfs.found())
 if glusterfs.found()
   config_host_data.set('CONFIG_GLUSTERFS_XLATOR_OPT', glusterfs.version().version_compare('>=4'))
@@ -1546,8 +1712,10 @@ config_host_data.set('CONFIG_LINUX_AIO', libaio.found())
 config_host_data.set('CONFIG_LINUX_IO_URING', linux_io_uring.found())
 config_host_data.set('CONFIG_LIBPMEM', libpmem.found())
 config_host_data.set('CONFIG_NUMA', numa.found())
+config_host_data.set('CONFIG_OPENGL', opengl.found())
 config_host_data.set('CONFIG_PROFILER', get_option('profiler'))
 config_host_data.set('CONFIG_RBD', rbd.found())
+config_host_data.set('CONFIG_RDMA', rdma.found())
 config_host_data.set('CONFIG_SDL', sdl.found())
 config_host_data.set('CONFIG_SDL_IMAGE', sdl_image.found())
 config_host_data.set('CONFIG_SECCOMP', seccomp.found())
@@ -1555,6 +1723,13 @@ config_host_data.set('CONFIG_SNAPPY', snappy.found())
 config_host_data.set('CONFIG_TPM', have_tpm)
 config_host_data.set('CONFIG_USB_LIBUSB', libusb.found())
 config_host_data.set('CONFIG_VDE', vde.found())
+config_host_data.set('CONFIG_VHOST_NET', have_vhost_net)
+config_host_data.set('CONFIG_VHOST_NET_USER', have_vhost_net_user)
+config_host_data.set('CONFIG_VHOST_NET_VDPA', have_vhost_net_vdpa)
+config_host_data.set('CONFIG_VHOST_KERNEL', have_vhost_kernel)
+config_host_data.set('CONFIG_VHOST_USER', have_vhost_user)
+config_host_data.set('CONFIG_VHOST_CRYPTO', have_vhost_user_crypto)
+config_host_data.set('CONFIG_VHOST_VDPA', have_vhost_vdpa)
 config_host_data.set('CONFIG_VHOST_USER_BLK_SERVER', have_vhost_user_blk_server)
 config_host_data.set('CONFIG_PNG', png.found())
 config_host_data.set('CONFIG_VNC', vnc.found())
@@ -1587,6 +1762,15 @@ config_host_data.set('CONFIG_X11', x11.found())
 config_host_data.set('CONFIG_DBUS_DISPLAY', dbus_display)
 config_host_data.set('CONFIG_CFI', get_option('cfi'))
 config_host_data.set('CONFIG_SELINUX', selinux.found())
+config_host_data.set('CONFIG_XEN_BACKEND', xen.found())
+if xen.found()
+  # protect from xen.version() having less than three components
+  xen_version = xen.version().split('.') + ['0', '0']
+  xen_ctrl_version = xen_version[0] + \
+    ('0' + xen_version[1]).substring(-2) + \
+    ('0' + xen_version[2]).substring(-2)
+  config_host_data.set('CONFIG_XEN_CTRL_INTERFACE_VERSION', xen_ctrl_version)
+endif
 config_host_data.set('QEMU_VERSION', '"@0@"'.format(meson.project_version()))
 config_host_data.set('QEMU_VERSION_MAJOR', meson.project_version().split('.')[0])
 config_host_data.set('QEMU_VERSION_MINOR', meson.project_version().split('.')[1])
@@ -1640,13 +1824,14 @@ config_host_data.set('CONFIG_SYNCFS', cc.has_function('syncfs'))
 config_host_data.set('CONFIG_SYNC_FILE_RANGE', cc.has_function('sync_file_range'))
 config_host_data.set('CONFIG_TIMERFD', cc.has_function('timerfd_create'))
 config_host_data.set('HAVE_COPY_FILE_RANGE', cc.has_function('copy_file_range'))
+config_host_data.set('HAVE_GETIFADDRS', cc.has_function('getifaddrs'))
 config_host_data.set('HAVE_OPENPTY', cc.has_function('openpty', dependencies: util))
 config_host_data.set('HAVE_STRCHRNUL', cc.has_function('strchrnul'))
 config_host_data.set('HAVE_SYSTEM_FUNCTION', cc.has_function('system', prefix: '#include <stdlib.h>'))
 if rdma.found()
   config_host_data.set('HAVE_IBV_ADVISE_MR',
                        cc.has_function('ibv_advise_mr',
-                                       args: config_host['RDMA_LIBS'].split(),
+                                       dependencies: rdma,
                                        prefix: '#include <infiniband/verbs.h>'))
 endif
 
@@ -1920,6 +2105,32 @@ config_host_data.set('CONFIG_GETAUXVAL', cc.links(gnu_source_prefix + '''
     return getauxval(AT_HWCAP) == 0;
   }'''))
 
+config_host_data.set('CONFIG_USBFS', have_linux_user and cc.compiles('''
+  #include <linux/usbdevice_fs.h>
+
+  #ifndef USBDEVFS_GET_CAPABILITIES
+  #error "USBDEVFS_GET_CAPABILITIES undefined"
+  #endif
+
+  #ifndef USBDEVFS_DISCONNECT_CLAIM
+  #error "USBDEVFS_DISCONNECT_CLAIM undefined"
+  #endif
+
+  int main(void) { return 0; }'''))
+
+have_keyring = get_option('keyring') \
+  .require(targetos == 'linux', error_message: 'keyring is only available on Linux') \
+  .require(cc.compiles('''
+    #include <errno.h>
+    #include <asm/unistd.h>
+    #include <linux/keyctl.h>
+    #include <sys/syscall.h>
+    #include <unistd.h>
+    int main(void) {
+        return syscall(__NR_keyctl, KEYCTL_READ, 0, NULL, NULL, 0);
+    }'''), error_message: 'keyctl syscall not available on this system').allowed()
+config_host_data.set('CONFIG_SECRET_KEYRING', have_keyring)
+
 have_cpuid_h = cc.links('''
   #include <cpuid.h>
   int main(void) {
@@ -1965,6 +2176,36 @@ config_host_data.set('CONFIG_AVX512F_OPT', get_option('avx512f') \
     }
     int main(int argc, char *argv[]) { return bar(argv[0]); }
   '''), error_message: 'AVX512F not available').allowed())
+
+have_pvrdma = get_option('pvrdma') \
+  .require(rdma.found(), error_message: 'PVRDMA requires OpenFabrics libraries') \
+  .require(cc.compiles('''
+    int main(void)
+    {
+      char buf = 0;
+      void *addr = &buf;
+      addr = mremap(addr, 0, 1, MREMAP_MAYMOVE | MREMAP_FIXED);
+
+      return 0;
+    }'''), error_message: 'PVRDMA requires mremap').allowed()
+
+if have_pvrdma
+  config_host_data.set('LEGACY_RDMA_REG_MR', not cc.compiles('''
+    #include <infiniband/verbs.h>
+    int main(void)
+    {
+      struct ibv_mr *mr;
+      struct ibv_pd *pd = NULL;
+      size_t length = 10;
+      uint64_t iova = 0;
+      int access = 0;
+      void *addr = NULL;
+
+      mr = ibv_reg_mr_iova(pd, addr, length, iova, access);
+      ibv_dereg_mr(mr);
+      return 0;
+    }'''))
+endif
 
 if get_option('membarrier').disabled()
   have_membarrier = false
@@ -2016,18 +2257,8 @@ if targetos == 'windows' and link_language == 'cpp'
 endif
 config_host_data.set('HAVE_VSS_SDK', have_vss_sdk)
 
-ignored = ['CONFIG_QEMU_INTERP_PREFIX', # actually per-target
-    'HAVE_GDB_BIN']
-arrays = ['CONFIG_BDRV_RW_WHITELIST', 'CONFIG_BDRV_RO_WHITELIST']
 foreach k, v: config_host
-  if ignored.contains(k)
-    # do nothing
-  elif arrays.contains(k)
-    if v != ''
-      v = '"' + '", "'.join(v.split()) + '", '
-    endif
-    config_host_data.set(k, v)
-  elif k.startswith('CONFIG_')
+  if k.startswith('CONFIG_')
     config_host_data.set(k, v == 'y' ? 1 : v)
   endif
 endforeach
@@ -2093,14 +2324,14 @@ host_kconfig = \
   (have_tpm ? ['CONFIG_TPM=y'] : []) + \
   (spice.found() ? ['CONFIG_SPICE=y'] : []) + \
   (have_ivshmem ? ['CONFIG_IVSHMEM=y'] : []) + \
-  ('CONFIG_OPENGL' in config_host ? ['CONFIG_OPENGL=y'] : []) + \
+  (opengl.found() ? ['CONFIG_OPENGL=y'] : []) + \
   (x11.found() ? ['CONFIG_X11=y'] : []) + \
-  ('CONFIG_VHOST_USER' in config_host ? ['CONFIG_VHOST_USER=y'] : []) + \
-  ('CONFIG_VHOST_VDPA' in config_host ? ['CONFIG_VHOST_VDPA=y'] : []) + \
-  ('CONFIG_VHOST_KERNEL' in config_host ? ['CONFIG_VHOST_KERNEL=y'] : []) + \
+  (have_vhost_user ? ['CONFIG_VHOST_USER=y'] : []) + \
+  (have_vhost_vdpa ? ['CONFIG_VHOST_VDPA=y'] : []) + \
+  (have_vhost_kernel ? ['CONFIG_VHOST_KERNEL=y'] : []) + \
   (have_virtfs ? ['CONFIG_VIRTFS=y'] : []) + \
   ('CONFIG_LINUX' in config_host ? ['CONFIG_LINUX=y'] : []) + \
-  ('CONFIG_PVRDMA' in config_host ? ['CONFIG_PVRDMA=y'] : []) + \
+  (have_pvrdma ? ['CONFIG_PVRDMA=y'] : []) + \
   (multiprocess_allowed ? ['CONFIG_MULTIPROCESS_ALLOWED=y'] : [])
 
 ignored = [ 'TARGET_XML_FILES', 'TARGET_ABI_DIR', 'TARGET_ARCH' ]
@@ -2133,7 +2364,7 @@ foreach target : target_dirs
     config_target += {
       'CONFIG_USER_ONLY': 'y',
       'CONFIG_QEMU_INTERP_PREFIX':
-        config_host['CONFIG_QEMU_INTERP_PREFIX'].format(config_target['TARGET_NAME'])
+        get_option('interp_prefix').replace('%M', config_target['TARGET_NAME'])
     }
   endif
 
@@ -2144,8 +2375,6 @@ foreach target : target_dirs
       config_all += { sym: 'y' }
       if sym == 'CONFIG_TCG' and tcg_arch == 'tci'
         config_target += { 'CONFIG_TCG_INTERPRETER': 'y' }
-      elif sym == 'CONFIG_XEN' and have_xen_pci_passthrough
-        config_target += { 'CONFIG_XEN_PCI_PASSTHROUGH': 'y' }
       endif
       if target in modular_tcg
         config_target += { 'CONFIG_TCG_MODULAR': 'y' }
@@ -2257,7 +2486,7 @@ config_all += config_all_devices
 config_all += config_host
 config_all += config_all_disas
 config_all += {
-  'CONFIG_XEN': config_host.has_key('CONFIG_XEN_BACKEND'),
+  'CONFIG_XEN': xen.found(),
   'CONFIG_SOFTMMU': have_system,
   'CONFIG_USER_ONLY': have_user,
   'CONFIG_ALL': true,
@@ -2605,7 +2834,7 @@ tracetool_depends = files(
 
 qemu_version_cmd = [find_program('scripts/qemu-version.sh'),
                     meson.current_source_dir(),
-                    config_host['PKGVERSION'], meson.project_version()]
+                    get_option('pkgversion'), meson.project_version()]
 qemu_version = custom_target('qemu-version.h',
                              output: 'qemu-version.h',
                              command: qemu_version_cmd,
@@ -2715,7 +2944,6 @@ if have_system
     'hw/char',
     'hw/display',
     'hw/dma',
-    'hw/hppa',
     'hw/hyperv',
     'hw/i2c',
     'hw/i386',
@@ -2781,7 +3009,7 @@ if have_system or have_user
 endif
 
 vhost_user = not_found
-if targetos == 'linux' and 'CONFIG_VHOST_USER' in config_host
+if targetos == 'linux' and have_vhost_user
   libvhost_user = subproject('libvhost-user')
   vhost_user = libvhost_user.get_variable('vhost_user_dep')
 endif
@@ -2797,12 +3025,25 @@ subdir('qom')
 subdir('authz')
 subdir('crypto')
 subdir('ui')
+subdir('hw')
 
 
 if enable_modules
   libmodulecommon = static_library('module-common', files('module-common.c') + genh, pic: true, c_args: '-DBUILD_DSO')
   modulecommon = declare_dependency(link_whole: libmodulecommon, compile_args: '-DBUILD_DSO')
 endif
+
+qom_ss = qom_ss.apply(config_host, strict: false)
+libqom = static_library('qom', qom_ss.sources() + genh,
+                        dependencies: [qom_ss.dependencies()],
+                        name_suffix: 'fa')
+qom = declare_dependency(link_whole: libqom)
+
+event_loop_base = files('event-loop-base.c')
+event_loop_base = static_library('event-loop-base', sources: event_loop_base + genh,
+                                 build_by_default: true)
+event_loop_base = declare_dependency(link_whole: event_loop_base,
+                                     dependencies: [qom])
 
 stub_ss = stub_ss.apply(config_all, strict: false)
 
@@ -2812,7 +3053,8 @@ libqemuutil = static_library('qemuutil',
                              sources: util_ss.sources() + stub_ss.sources() + genh,
                              dependencies: [util_ss.dependencies(), libm, threads, glib, socket, malloc, pixman])
 qemuutil = declare_dependency(link_with: libqemuutil,
-                              sources: genh + version_res)
+                              sources: genh + version_res,
+                              dependencies: [event_loop_base])
 
 if have_system or have_user
   decodetree = generator(find_program('scripts/decodetree.py'),
@@ -2890,7 +3132,6 @@ subdir('monitor')
 subdir('net')
 subdir('replay')
 subdir('semihosting')
-subdir('hw')
 subdir('tcg')
 subdir('fpu')
 subdir('accel')
@@ -3015,13 +3256,6 @@ qemu_syms = custom_target('qemu.syms', output: 'qemu.syms',
                              capture: true,
                              command: [undefsym, nm, '@INPUT@'])
 
-qom_ss = qom_ss.apply(config_host, strict: false)
-libqom = static_library('qom', qom_ss.sources() + genh,
-                        dependencies: [qom_ss.dependencies()],
-                        name_suffix: 'fa')
-
-qom = declare_dependency(link_whole: libqom)
-
 authz_ss = authz_ss.apply(config_host, strict: false)
 libauthz = static_library('authz', authz_ss.sources() + genh,
                           dependencies: [authz_ss.dependencies()],
@@ -3074,7 +3308,7 @@ libblockdev = static_library('blockdev', blockdev_ss.sources() + genh,
                              build_by_default: false)
 
 blockdev = declare_dependency(link_whole: [libblockdev],
-                              dependencies: [block])
+                              dependencies: [block, event_loop_base])
 
 qmp_ss = qmp_ss.apply(config_host, strict: false)
 libqmp = static_library('qmp', qmp_ss.sources() + genh,
@@ -3362,7 +3596,7 @@ if have_tools
              dependencies: qemuutil,
              install: true)
 
-  if 'CONFIG_VHOST_USER' in config_host
+  if have_vhost_user
     subdir('contrib/vhost-user-blk')
     subdir('contrib/vhost-user-gpu')
     subdir('contrib/vhost-user-input')
@@ -3429,20 +3663,20 @@ endif
 summary_info = {}
 summary_info += {'Install prefix':    get_option('prefix')}
 summary_info += {'BIOS directory':    qemu_datadir}
-summary_info += {'firmware path':     get_option('qemu_firmwarepath')}
-summary_info += {'binary directory':  get_option('bindir')}
-summary_info += {'library directory': get_option('libdir')}
+summary_info += {'firmware path':     get_option('prefix') / get_option('qemu_firmwarepath')}
+summary_info += {'binary directory':  get_option('prefix') / get_option('bindir')}
+summary_info += {'library directory': get_option('prefix') / get_option('libdir')}
 summary_info += {'module directory':  qemu_moddir}
-summary_info += {'libexec directory': get_option('libexecdir')}
-summary_info += {'include directory': get_option('includedir')}
-summary_info += {'config directory':  get_option('sysconfdir')}
+summary_info += {'libexec directory': get_option('prefix') / get_option('libexecdir')}
+summary_info += {'include directory': get_option('prefix') / get_option('includedir')}
+summary_info += {'config directory':  get_option('prefix') / get_option('sysconfdir')}
 if targetos != 'windows'
-  summary_info += {'local state directory': get_option('localstatedir')}
-  summary_info += {'Manual directory':      get_option('mandir')}
+  summary_info += {'local state directory': get_option('prefix') / get_option('localstatedir')}
+  summary_info += {'Manual directory':      get_option('prefix') / get_option('mandir')}
 else
   summary_info += {'local state directory': 'queried at runtime'}
 endif
-summary_info += {'Doc directory':     get_option('docdir')}
+summary_info += {'Doc directory':     get_option('prefix') / get_option('docdir')}
 summary_info += {'Build directory':   meson.current_build_dir()}
 summary_info += {'Source path':       meson.current_source_dir()}
 summary_info += {'GIT submodules':    config_host['GIT_SUBMODULES']}
@@ -3457,11 +3691,7 @@ summary_info += {'sphinx-build':      sphinx_build}
 if config_host.has_key('HAVE_GDB_BIN')
   summary_info += {'gdb':             config_host['HAVE_GDB_BIN']}
 endif
-if get_option('iasl') != ''
-  summary_info += {'iasl':            get_option('iasl')}
-else
-  summary_info += {'iasl':            false}
-endif
+summary_info += {'iasl':              iasl}
 summary_info += {'genisoimage':       config_host['GENISOIMAGE']}
 if targetos == 'windows' and have_ga
   summary_info += {'wixl':            wixl}
@@ -3480,7 +3710,7 @@ summary_info += {'block layer':       have_block}
 summary_info += {'Install blobs':     get_option('install_blobs')}
 summary_info += {'module support':    config_host.has_key('CONFIG_MODULES')}
 if config_host.has_key('CONFIG_MODULES')
-  summary_info += {'alternative module path': config_host.has_key('CONFIG_MODULE_UPGRADES')}
+  summary_info += {'alternative module path': get_option('module_upgrades')}
 endif
 summary_info += {'fuzzing support':   get_option('fuzzing')}
 if have_system
@@ -3492,15 +3722,12 @@ if 'simple' in get_option('trace_backends')
 endif
 summary_info += {'D-Bus display':     dbus_display}
 summary_info += {'QOM debugging':     get_option('qom_cast_debug')}
-summary_info += {'vhost-kernel support': config_host.has_key('CONFIG_VHOST_KERNEL')}
-summary_info += {'vhost-net support': config_host.has_key('CONFIG_VHOST_NET')}
-summary_info += {'vhost-crypto support': config_host.has_key('CONFIG_VHOST_CRYPTO')}
-summary_info += {'vhost-scsi support': config_host.has_key('CONFIG_VHOST_SCSI')}
-summary_info += {'vhost-vsock support': config_host.has_key('CONFIG_VHOST_VSOCK')}
-summary_info += {'vhost-user support': config_host.has_key('CONFIG_VHOST_USER')}
+summary_info += {'vhost-kernel support': have_vhost_kernel}
+summary_info += {'vhost-net support': have_vhost_net}
+summary_info += {'vhost-user support': have_vhost_user}
+summary_info += {'vhost-user-crypto support': have_vhost_user_crypto}
 summary_info += {'vhost-user-blk server support': have_vhost_user_blk_server}
-summary_info += {'vhost-user-fs support': config_host.has_key('CONFIG_VHOST_USER_FS')}
-summary_info += {'vhost-vdpa support': config_host.has_key('CONFIG_VHOST_VDPA')}
+summary_info += {'vhost-vdpa support': have_vhost_vdpa}
 summary_info += {'build guest agent': have_ga}
 summary(summary_info, bool_yn: true, section: 'Configurable features')
 
@@ -3535,10 +3762,10 @@ link_args = get_option(link_language + '_link_args')
 if link_args.length() > 0
   summary_info += {'LDFLAGS':         ' '.join(link_args)}
 endif
-summary_info += {'QEMU_CFLAGS':       config_host['QEMU_CFLAGS']}
-summary_info += {'QEMU_CXXFLAGS':     config_host['QEMU_CXXFLAGS']}
-summary_info += {'QEMU_OBJCFLAGS':    config_host['QEMU_OBJCFLAGS']}
-summary_info += {'QEMU_LDFLAGS':      config_host['QEMU_LDFLAGS']}
+summary_info += {'QEMU_CFLAGS':       ' '.join(qemu_cflags)}
+summary_info += {'QEMU_CXXFLAGS':     ' '.join(qemu_cxxflags)}
+summary_info += {'QEMU_OBJCFLAGS':    ' '.join(qemu_objcflags)}
+summary_info += {'QEMU_LDFLAGS':      ' '.join(qemu_ldflags)}
 summary_info += {'profiler':          get_option('profiler')}
 summary_info += {'link-time optimization (LTO)': get_option('b_lto')}
 summary_info += {'PIE':               get_option('b_pie')}
@@ -3588,9 +3815,9 @@ if have_system
   summary_info += {'HVF support':       config_all.has_key('CONFIG_HVF')}
   summary_info += {'WHPX support':      config_all.has_key('CONFIG_WHPX')}
   summary_info += {'NVMM support':      config_all.has_key('CONFIG_NVMM')}
-  summary_info += {'Xen support':       config_host.has_key('CONFIG_XEN_BACKEND')}
-  if config_host.has_key('CONFIG_XEN_BACKEND')
-    summary_info += {'xen ctrl version':  config_host['CONFIG_XEN_CTRL_INTERFACE_VERSION']}
+  summary_info += {'Xen support':       xen.found()}
+  if xen.found()
+    summary_info += {'xen ctrl version':  xen.version()}
   endif
 endif
 summary_info += {'TCG support':       config_all.has_key('CONFIG_TCG')}
@@ -3615,8 +3842,8 @@ summary_info = {}
 summary_info += {'coroutine backend': config_host['CONFIG_COROUTINE_BACKEND']}
 summary_info += {'coroutine pool':    have_coroutine_pool}
 if have_block
-  summary_info += {'Block whitelist (rw)': config_host['CONFIG_BDRV_RW_WHITELIST']}
-  summary_info += {'Block whitelist (ro)': config_host['CONFIG_BDRV_RO_WHITELIST']}
+  summary_info += {'Block whitelist (rw)': get_option('block_drv_rw_whitelist')}
+  summary_info += {'Block whitelist (ro)': get_option('block_drv_ro_whitelist')}
   summary_info += {'Use block whitelist in tools': get_option('block_drv_whitelist_in_tools')}
   summary_info += {'VirtFS support':    have_virtfs}
   summary_info += {'build virtiofs daemon': have_virtiofsd}
@@ -3636,7 +3863,7 @@ summary(summary_info, bool_yn: true, section: 'Block layer support')
 
 # Crypto
 summary_info = {}
-summary_info += {'TLS priority':      config_host['CONFIG_TLS_PRIORITY']}
+summary_info += {'TLS priority':      get_option('tls_priority')}
 summary_info += {'GNUTLS support':    gnutls}
 if gnutls.found()
   summary_info += {'  GNUTLS crypto':   gnutls_crypto.found()}
@@ -3648,7 +3875,7 @@ if nettle.found()
 endif
 summary_info += {'AF_ALG support':    have_afalg}
 summary_info += {'rng-none':          get_option('rng_none')}
-summary_info += {'Linux keyring':     config_host.has_key('CONFIG_SECRET_KEYRING')}
+summary_info += {'Linux keyring':     have_keyring}
 summary(summary_info, bool_yn: true, section: 'Crypto')
 
 # Libraries
@@ -3694,8 +3921,8 @@ summary_info += {'l2tpv3 support':    have_l2tpv3}
 summary_info += {'Linux AIO support': libaio}
 summary_info += {'Linux io_uring support': linux_io_uring}
 summary_info += {'ATTR/XATTR support': libattr}
-summary_info += {'RDMA support':      config_host.has_key('CONFIG_RDMA')}
-summary_info += {'PVRDMA support':    config_host.has_key('CONFIG_PVRDMA')}
+summary_info += {'RDMA support':      rdma}
+summary_info += {'PVRDMA support':    have_pvrdma}
 summary_info += {'fdt support':       fdt_opt == 'disabled' ? false : fdt_opt}
 summary_info += {'libcap-ng support': libcap_ng}
 summary_info += {'bpf support':       libbpf}
@@ -3708,7 +3935,7 @@ summary_info += {'smartcard support': cacard}
 summary_info += {'U2F support':       u2f}
 summary_info += {'libusb':            libusb}
 summary_info += {'usb net redir':     usbredir}
-summary_info += {'OpenGL support':    config_host.has_key('CONFIG_OPENGL')}
+summary_info += {'OpenGL support (epoxy)': opengl}
 summary_info += {'GBM':               gbm}
 summary_info += {'libiscsi support':  libiscsi}
 summary_info += {'libnfs support':    libnfs}

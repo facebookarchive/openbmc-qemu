@@ -98,14 +98,13 @@ if dbus_display
 endif
 
 dbus_daemon = find_program('dbus-daemon', required: false)
-if dbus_daemon.found() and config_host.has_key('GDBUS_CODEGEN')
+if dbus_daemon.found() and gdbus_codegen.found()
   # Temporarily disabled due to Patchew failures:
   #qtests_i386 += ['dbus-vmstate-test']
   dbus_vmstate1 = custom_target('dbus-vmstate description',
                                 output: ['dbus-vmstate1.h', 'dbus-vmstate1.c'],
                                 input: meson.project_source_root() / 'backends/dbus-vmstate1.xml',
-                                command: [config_host['GDBUS_CODEGEN'],
-                                          '@INPUT@',
+                                command: [gdbus_codegen, '@INPUT@',
                                           '--interface-prefix', 'org.qemu',
                                           '--generate-c-code', '@BASENAME@']).to_list()
 else
@@ -190,7 +189,8 @@ qtests_npcm7xx = \
    (slirp.found() ? ['npcm7xx_emc-test'] : [])
 qtests_aspeed = \
   ['aspeed_hace-test',
-   'aspeed_smc-test']
+   'aspeed_smc-test',
+   'aspeed_gpio-test']
 qtests_arm = \
   (config_all_devices.has_key('CONFIG_MPS2') ? ['sse-timer-test'] : []) + \
   (config_all_devices.has_key('CONFIG_CMSDK_APB_DUALTIMER') ? ['cmsdk-apb-dualtimer-test'] : []) + \
@@ -264,7 +264,9 @@ qos_test_ss.add(
 if have_virtfs
   qos_test_ss.add(files('virtio-9p-test.c'))
 endif
-qos_test_ss.add(when: 'CONFIG_VHOST_USER', if_true: files('vhost-user-test.c'))
+if have_vhost_user
+  qos_test_ss.add(files('vhost-user-test.c'))
+endif
 if have_tools and have_vhost_user_blk_server
   qos_test_ss.add(files('vhost-user-blk-test.c'))
 endif
