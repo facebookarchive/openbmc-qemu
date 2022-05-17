@@ -27,12 +27,14 @@
 #include "hw/qdev-properties.h"
 #include "hw/qdev-properties-system.h"
 #include "hw/ssi/ssi.h"
+#include "hw/irq.h"
 #include "migration/vmstate.h"
 #include "qemu/bitops.h"
 #include "qemu/log.h"
 #include "qemu/module.h"
 #include "qemu/error-report.h"
 #include "qapi/error.h"
+#include "qapi/visitor.h"
 #include "trace.h"
 #include "qom/object.h"
 
@@ -472,6 +474,7 @@ struct Flash {
     uint8_t spansion_cr2v;
     uint8_t spansion_cr3v;
     uint8_t spansion_cr4v;
+    bool write_protect_pin;
     bool write_enable;
     bool four_bytes_address_mode;
     bool reset_enable;
@@ -1509,6 +1512,15 @@ static uint32_t m25p80_transfer8(SSIPeripheral *ss, uint32_t tx)
     return r;
 }
 
+static void m25p80_write_protect_pin_irq_handler(void *opaque, int n, int level)
+{
+    Flash *s = M25P80(opaque);
+    bool wp = !!level;
+    /* W# is just a single pin. */
+    assert(n == 0);
+    s->write_protect_pin = wp;
+}
+
 static void m25p80_realize(SSIPeripheral *ss, Error **errp)
 {
     Flash *s = M25P80(ss);
@@ -1540,11 +1552,16 @@ static void m25p80_realize(SSIPeripheral *ss, Error **errp)
         s->storage = blk_blockalign(NULL, s->size);
         memset(s->storage, 0xFF, s->size);
     }
+
+    qdev_init_gpio_in_named(DEVICE(s),
+                            m25p80_write_protect_pin_irq_handler, "W#", 1);
 }
 
 static void m25p80_reset(DeviceState *d)
 {
     Flash *s = M25P80(d);
+
+    s->write_protect_pin = true;
 
     reset_memory(s);
 }
@@ -1626,6 +1643,7 @@ static const VMStateDescription vmstate_m25p80 = {
         VMSTATE_UINT8(needed_bytes, Flash),
         VMSTATE_UINT8(cmd_in_progress, Flash),
         VMSTATE_UINT32(cur_addr, Flash),
+        VMSTATE_BOOL(write_protect_pin, Flash),
         VMSTATE_BOOL(write_enable, Flash),
         VMSTATE_BOOL(reset_enable, Flash),
         VMSTATE_UINT8(ear, Flash),
@@ -1647,6 +1665,38 @@ static const VMStateDescription vmstate_m25p80 = {
     }
 };
 
+static void m25p80_get_write_protect_pin(Object *obj,
+                                       Visitor *v,
+                                       const char *name,
+                                       void *opaque,
+                                       Error **errp)
+{
+    Flash *s = M25P80(obj);
+    bool value;
+
+    value = s->write_protect_pin;
+
+    visit_type_bool(v, name, &value, errp);
+}
+
+static void m25p80_set_write_protect_pin(Object *obj,
+                                       Visitor *v,
+                                       const char *name,
+                                       void *opaque,
+                                       Error **errp)
+{
+    Flash *s = M25P80(obj);
+    bool value;
+    qemu_irq w;
+
+    if (!visit_type_bool(v, name, &value, errp)) {
+        return;
+    }
+
+    w = qdev_get_gpio_in_named(DEVICE(s), "W#", 0);
+    qemu_set_irq(w, value);
+}
+
 static void m25p80_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
@@ -1661,6 +1711,9 @@ static void m25p80_class_init(ObjectClass *klass, void *data)
     device_class_set_props(dc, m25p80_properties);
     dc->reset = m25p80_reset;
     mc->pi = data;
+
+    object_class_property_add(klass, "W#", "bool", m25p80_get_write_protect_pin,
+                              m25p80_set_write_protect_pin, NULL, NULL);
 }
 
 static const TypeInfo m25p80_info = {
