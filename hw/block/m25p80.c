@@ -818,7 +818,6 @@ static void reset_memory(Flash *s)
     s->block_protect1 = false;
     s->block_protect2 = false;
     s->block_protect3 = false;
-    s->status_register_write_disabled = false;
 
     switch (get_man(s)) {
     case MAN_NUMONYX:
@@ -1183,6 +1182,18 @@ static void decode_new_cmd(Flash *s, uint32_t value)
         break;
 
     case WRSR:
+        /*
+         * If W# is low and status_register_write_disable is high,
+         * status register writes are disabled.
+         * This is also called "hardware protected mode" (HPM). All other
+         * combinations of the two states are called "software protected mode"
+         * (SPM), and status register writes are permitted.
+         */
+        if (s->write_protect_pin == 0 && s->status_register_write_disabled) {
+            qemu_log_mask(LOG_GUEST_ERROR,
+                          "M25P80: Status register write is disabled!\n");
+            break;
+        }
         if (s->write_enable && !s->status_register_write_disabled) {
             switch (get_man(s)) {
             case MAN_SPANSION:
@@ -1218,6 +1229,7 @@ static void decode_new_cmd(Flash *s, uint32_t value)
         s->data[0] |= (!!s->block_protect2) << 4;
         s->data[0] |= (!!s->block_protect3) << 5;
         s->data[0] |= (!!s->status_register_write_disabled) << 7;
+
         switch (get_man(s)) {
         case MAN_MACRONIX:
         case MAN_ISSI:
@@ -1562,6 +1574,7 @@ static void m25p80_reset(DeviceState *d)
     Flash *s = M25P80(d);
 
     s->write_protect_pin = true;
+    s->status_register_write_disabled = false;
 
     reset_memory(s);
 }
