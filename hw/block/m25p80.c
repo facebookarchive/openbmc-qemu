@@ -1183,7 +1183,7 @@ static void decode_new_cmd(Flash *s, uint32_t value)
                           "M25P80: Status register write is disabled!\n");
             break;
         }
-        if (s->write_enable && !s->status_register_write_disabled) {
+        if (s->write_enable) {
             switch (get_man(s)) {
             case MAN_SPANSION:
                 s->needed_bytes = 2;
