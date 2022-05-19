@@ -480,10 +480,6 @@ struct Flash {
     bool reset_enable;
     bool quad_enable;
     bool aai_enable;
-    bool block_protect0;
-    bool block_protect1;
-    bool block_protect2;
-    bool block_protect3;
     bool status_register_write_disabled;
     uint8_t ear;
 
@@ -731,6 +727,8 @@ static void complete_collecting_data(Flash *s)
         flash_erase(s, s->cur_addr, s->cmd_in_progress);
         break;
     case WRSR:
+        s->status_register_write_disabled = extract32(s->data[0], 7, 1);
+
         switch (get_man(s)) {
         case MAN_SPANSION:
             s->quad_enable = !!(s->data[1] & 0x02);
@@ -739,11 +737,6 @@ static void complete_collecting_data(Flash *s)
             s->quad_enable = extract32(s->data[0], 6, 1);
             break;
         case MAN_MACRONIX:
-            s->block_protect0 = extract32(s->data[0], 2, 1);
-            s->block_protect1 = extract32(s->data[0], 3, 1);
-            s->block_protect2 = extract32(s->data[0], 4, 1);
-            s->block_protect3 = extract32(s->data[0], 5, 1);
-            s->status_register_write_disabled = extract32(s->data[0], 7, 1);
             s->quad_enable = extract32(s->data[0], 6, 1);
             if (s->len > 1) {
                 s->volatile_cfg = s->data[1];
@@ -814,10 +807,6 @@ static void reset_memory(Flash *s)
     s->reset_enable = false;
     s->quad_enable = false;
     s->aai_enable = false;
-    s->block_protect0 = false;
-    s->block_protect1 = false;
-    s->block_protect2 = false;
-    s->block_protect3 = false;
 
     switch (get_man(s)) {
     case MAN_NUMONYX:
@@ -1183,7 +1172,7 @@ static void decode_new_cmd(Flash *s, uint32_t value)
 
     case WRSR:
         /*
-         * If W# is low and status_register_write_disable is high,
+         * If W# is low and status_register_write_disabled is high,
          * status register writes are disabled.
          * This is also called "hardware protected mode" (HPM). All other
          * combinations of the two states are called "software protected mode"
@@ -1224,22 +1213,13 @@ static void decode_new_cmd(Flash *s, uint32_t value)
 
     case RDSR:
         s->data[0] = (!!s->write_enable) << 1;
-        s->data[0] |= (!!s->block_protect0) << 2;
-        s->data[0] |= (!!s->block_protect1) << 3;
-        s->data[0] |= (!!s->block_protect2) << 4;
-        s->data[0] |= (!!s->block_protect3) << 5;
         s->data[0] |= (!!s->status_register_write_disabled) << 7;
 
-        switch (get_man(s)) {
-        case MAN_MACRONIX:
-        case MAN_ISSI:
+        if (get_man(s) == MAN_MACRONIX || get_man(s) == MAN_ISSI) {
             s->data[0] |= (!!s->quad_enable) << 6;
-            break;
-        case MAN_SST:
+        }
+        if (get_man(s) == MAN_SST) {
             s->data[0] |= (!!s->aai_enable) << 6;
-            break;
-        default:
-            break;
         }
 
         s->pos = 0;
