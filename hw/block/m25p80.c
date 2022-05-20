@@ -727,6 +727,19 @@ static void complete_collecting_data(Flash *s)
         flash_erase(s, s->cur_addr, s->cmd_in_progress);
         break;
     case WRSR:
+        /*
+         * If W# is low and status_register_write_disabled is high,
+         * status register writes are disabled.
+         * This is also called "hardware protected mode" (HPM). All other
+         * combinations of the two states are called "software protected mode"
+         * (SPM), and status register writes are permitted.
+         */
+        if ((s->write_protect_pin == 0 && s->status_register_write_disabled)
+            || !s->write_enable) {
+            qemu_log_mask(LOG_GUEST_ERROR,
+                          "M25P80: Status register write is disabled!\n");
+            break;
+        }
         s->status_register_write_disabled = extract32(s->data[0], 7, 1);
 
         switch (get_man(s)) {
@@ -1171,34 +1184,20 @@ static void decode_new_cmd(Flash *s, uint32_t value)
         break;
 
     case WRSR:
-        /*
-         * If W# is low and status_register_write_disabled is high,
-         * status register writes are disabled.
-         * This is also called "hardware protected mode" (HPM). All other
-         * combinations of the two states are called "software protected mode"
-         * (SPM), and status register writes are permitted.
-         */
-        if (s->write_protect_pin == 0 && s->status_register_write_disabled) {
-            qemu_log_mask(LOG_GUEST_ERROR,
-                          "M25P80: Status register write is disabled!\n");
+        switch (get_man(s)) {
+        case MAN_SPANSION:
+            s->needed_bytes = 2;
+            s->state = STATE_COLLECTING_DATA;
             break;
-        }
-        if (s->write_enable) {
-            switch (get_man(s)) {
-            case MAN_SPANSION:
-                s->needed_bytes = 2;
-                s->state = STATE_COLLECTING_DATA;
-                break;
-            case MAN_MACRONIX:
-                s->needed_bytes = 2;
-                s->state = STATE_COLLECTING_VAR_LEN_DATA;
-                break;
-            default:
-                s->needed_bytes = 1;
-                s->state = STATE_COLLECTING_DATA;
-            }
-            s->pos = 0;
-        }
+        case MAN_MACRONIX:
+            s->needed_bytes = 2;
+            s->state = STATE_COLLECTING_VAR_LEN_DATA;
+            break;
+        default:
+            s->needed_bytes = 1;
+            s->state = STATE_COLLECTING_DATA;
+         }
+        s->pos = 0;
         break;
 
     case WRDI:
