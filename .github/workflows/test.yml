@@ -1,0 +1,29 @@
+on: [push, pull_request]
+name: Run tests
+jobs:
+  build:
+    name: Run tests
+    strategy:
+      matrix:
+        container: [ubuntu, centos8]
+    runs-on: ubuntu-20.04
+    container:
+      image: peterdelevoryas/${{ matrix.container }}-qemu
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Check patch
+        uses: webispy/checkpatch-action@master
+        env:
+          CHECKPATCH_COMMAND: ./scripts/checkpatch.pl
+      - name: Configure
+        run: |
+          git config --global --add safe.directory /__w/qemu/qemu
+          git config --global --add safe.directory /__w/openbmc-qemu/openbmc-qemu
+          ./configure --target-list=arm-softmmu
+      - name: Make
+        run: make -j $(nproc)
+      - name: Check
+        run: make -j $(nproc) check
+      - name: Acceptance tests
+        run: make -j $(nproc) check-avocado
