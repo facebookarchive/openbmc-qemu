@@ -904,6 +904,30 @@ static void fuji_bmc_i2c_init(AspeedMachineState *bmc)
     }
 }
 
+static void wedge100_i2c_init(AspeedMachineState *bmc)
+{
+    AspeedSoCState *soc = &bmc->soc;
+    I2CBus *i2c[14];
+
+    for (int i = 0; i < 14; i++) {
+        i2c[i] = aspeed_i2c_get_bus(&soc->i2c, i);
+    }
+
+    i2c_slave_create_simple(i2c[3], TYPE_TMP75, 0x48);
+    i2c_slave_create_simple(i2c[3], TYPE_TMP75, 0x49);
+    i2c_slave_create_simple(i2c[3], TYPE_TMP75, 0x4a);
+    i2c_slave_create_simple(i2c[3], TYPE_TMP75, 0x4b);
+    i2c_slave_create_simple(i2c[3], TYPE_TMP75, 0x4c);
+    i2c_slave_create_simple(i2c[8], TYPE_TMP75, 0x48);
+    i2c_slave_create_simple(i2c[8], TYPE_TMP75, 0x49);
+    aspeed_eeprom_init(i2c[6], 0x51, 64 * KiB);
+    aspeed_eeprom_init(i2c[7], 0x50, 2 * KiB);
+
+    /* FIXME: These two EEPROM's are supposed to be fancpld's. */
+    aspeed_eeprom_init(i2c[4], 0x33, 64 * KiB);
+    aspeed_eeprom_init(i2c[8], 0x33, 64 * KiB);
+}
+
 #define TYPE_TMP421 "tmp421"
 
 static void bletchley_bmc_i2c_init(AspeedMachineState *bmc)
@@ -1668,6 +1692,18 @@ static const struct FBMachineData fb_machines[] = {
         .macs_mask   = ASPEED_MAC0_ON,
         .stdout_path = ASPEED_DEV_UART5,
         .ram_size    = 512 * MiB,
+    },
+    {
+        .name        = "wedge100-bmc",
+        .desc        = "Facebook Wedge 100 BMC (ARM926EJ-S)",
+        .soc_name    = "ast2400-a1",
+        .hw_strap1   = PALMETTO_BMC_HW_STRAP1,
+        .hw_strap2   = 0,
+        .flash_model = "mx25l25635e",
+        .macs_mask   = ASPEED_MAC1_ON,
+        .stdout_path = ASPEED_DEV_UART3,
+        .ram_size    = 512 * MiB,
+        .i2c_init    = wedge100_i2c_init,
     },
 };
 
