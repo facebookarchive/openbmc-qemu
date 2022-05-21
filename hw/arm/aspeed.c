@@ -1637,6 +1637,17 @@ static const struct FBMachineData fb_machines[] = {
         .ram_size    = 512 * MiB,
     },
     {
+        .name        = "emeraldpools-bmc",
+        .desc        = "Facebook Emerald Pools BMC (ARM1176)",
+        .soc_name    = "ast2500-a1",
+        .hw_strap1   = AST2500_EVB_HW_STRAP1,
+        .hw_strap2   = 0,
+        .flash_model = "mx25l25635e",
+        .macs_mask   = ASPEED_MAC3_ON,
+        .stdout_path = ASPEED_DEV_UART5,
+        .ram_size    = 512 * MiB,
+    },
+    {
         .name        = "elbert-bmc",
         .desc        = "Facebook Elbert BMC (Cortex-A7)",
         .soc_name    = "ast2600-a3",
