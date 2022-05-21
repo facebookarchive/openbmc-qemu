@@ -1490,3 +1490,59 @@ static const TypeInfo aspeed_machine_types[] = {
 };
 
 DEFINE_TYPES(aspeed_machine_types)
+
+struct FBMachineData {
+    const char *name;
+    const char *desc;
+    const char *soc_name;
+    const char *flash_model;
+    uint32_t hw_strap1;
+    uint32_t hw_strap2;
+    uint32_t stdout_path;
+    uint32_t macs_mask;
+    ram_addr_t ram_size;
+    void (*reset)(MachineState *state);
+    void (*i2c_init)(AspeedMachineState *bmc);
+};
+
+static void fb_machine_class_init(ObjectClass *oc, void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+    AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
+    const struct FBMachineData *fb = data;
+
+    mc->desc          = fb->desc;
+    amc->soc_name     = fb->soc_name;
+    amc->hw_strap1    = fb->hw_strap1;
+    amc->hw_strap2    = fb->hw_strap2;
+    amc->fmc_model    = fb->flash_model;
+    amc->spi_model    = fb->flash_model;
+    amc->num_cs       = 2;
+    amc->uart_default = fb->stdout_path;
+    amc->macs_mask    = fb->macs_mask;
+    amc->i2c_init     = fb->i2c_init;
+    mc->default_ram_size = fb->ram_size;
+    mc->default_cpus = mc->min_cpus = mc->max_cpus = aspeed_soc_num_cpus(amc->soc_name);
+}
+
+static const struct FBMachineData fb_machines[] = {
+};
+
+static void fb_register_machines(void)
+{
+    static TypeInfo types[ARRAY_SIZE(fb_machines)];
+    static char names[ARRAY_SIZE(types)][32];
+
+    for (int i = 0; i < ARRAY_SIZE(fb_machines); i++) {
+        snprintf(names[i], sizeof(names[i]), "%s%s", fb_machines[i].name, TYPE_MACHINE_SUFFIX);
+
+        types[i].name = names[i];
+        types[i].parent = TYPE_ASPEED_MACHINE;
+        types[i].class_init = fb_machine_class_init;
+        types[i].class_data = (void*)&fb_machines[i];
+    }
+
+    type_register_static_array(types, ARRAY_SIZE(types));
+}
+
+type_init(fb_register_machines);
