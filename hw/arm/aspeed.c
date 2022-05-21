@@ -1005,6 +1005,47 @@ static void fby35_i2c_init(AspeedMachineState *bmc)
      */
 }
 
+static void create_unimplemented_i2c_device(I2CBus *bus, uint8_t addr)
+{
+    /* Using EEPROM's as placeholders */
+    aspeed_eeprom_init(bus, addr, 64 * KiB);
+}
+
+static void oby35_cl_i2c_init(AspeedMachineState *bmc)
+{
+    AspeedSoCState *soc = &bmc->soc;
+    I2CBus *i2c[16];
+
+    for (int i = 0; i < 16; i++) {
+        i2c[i] = aspeed_i2c_get_bus(&soc->i2c, i);
+    }
+
+    create_unimplemented_i2c_device(i2c[1], 0x71);
+    create_unimplemented_i2c_device(i2c[2], 0x16);
+    create_unimplemented_i2c_device(i2c[2], 0x10);
+    create_unimplemented_i2c_device(i2c[6], 0x20);
+    create_unimplemented_i2c_device(i2c[7], 0x20);
+    create_unimplemented_i2c_device(i2c[8], 0x20);
+}
+
+static void oby35_bb_i2c_init(AspeedMachineState *bmc)
+{
+    AspeedSoCState *soc = &bmc->soc;
+    I2CBus *i2c[16];
+
+    for (int i = 0; i < 16; i++) {
+        i2c[i] = aspeed_i2c_get_bus(&soc->i2c, i);
+    }
+
+    /* FIXME: This is supposed to be an adm1278 */
+    i2c_slave_create_simple(i2c[1], "adm1272", 0x40);
+    /* FIXME: This is supposed to be an ltc4282 */
+    i2c_slave_create_simple(i2c[1], "adm1272", 0x44);
+
+    create_unimplemented_i2c_device(i2c[6], 0x20);
+    create_unimplemented_i2c_device(i2c[7], 0x20);
+}
+
 static bool aspeed_get_mmio_exec(Object *obj, Error **errp)
 {
     return ASPEED_MACHINE(obj)->mmio_exec;
@@ -1516,6 +1557,7 @@ static const TypeInfo aspeed_machine_types[] = {
 DEFINE_TYPES(aspeed_machine_types)
 
 struct FBMachineData {
+    const char *parent;
     const char *name;
     const char *desc;
     const char *soc_name;
@@ -1535,17 +1577,27 @@ static void fb_machine_class_init(ObjectClass *oc, void *data)
     AspeedMachineClass *amc = ASPEED_MACHINE_CLASS(oc);
     const struct FBMachineData *fb = data;
 
-    mc->desc          = fb->desc;
-    amc->soc_name     = fb->soc_name;
-    amc->hw_strap1    = fb->hw_strap1;
-    amc->hw_strap2    = fb->hw_strap2;
-    amc->fmc_model    = fb->flash_model;
-    amc->spi_model    = fb->flash_model;
-    amc->num_cs       = 2;
-    amc->uart_default = fb->stdout_path;
-    amc->macs_mask    = fb->macs_mask;
-    amc->i2c_init     = fb->i2c_init;
-    mc->default_ram_size = fb->ram_size;
+    if (fb->desc)
+        mc->desc = fb->desc;
+    if (fb->soc_name)
+        amc->soc_name = fb->soc_name;
+    if (fb->hw_strap1)
+        amc->hw_strap1 = fb->hw_strap1;
+    if (fb->hw_strap2)
+        amc->hw_strap2 = fb->hw_strap2;
+    if (fb->flash_model) {
+        amc->fmc_model = fb->flash_model;
+        amc->spi_model = fb->flash_model;
+    }
+    amc->num_cs = 2;
+    if (fb->stdout_path)
+        amc->uart_default = fb->stdout_path;
+    if (fb->macs_mask)
+        amc->macs_mask = fb->macs_mask;
+    if (fb->i2c_init)
+        amc->i2c_init = fb->i2c_init;
+    if (fb->ram_size)
+        mc->default_ram_size = fb->ram_size;
     mc->default_cpus = mc->min_cpus = mc->max_cpus = aspeed_soc_num_cpus(amc->soc_name);
 }
 
@@ -1738,6 +1790,18 @@ static const struct FBMachineData fb_machines[] = {
         .stdout_path = ASPEED_DEV_UART5,
         .ram_size    = 1 * GiB,
     },
+    {
+        .parent      = MACHINE_TYPE_NAME("ast1030-evb"),
+        .name        = "oby35-cl",
+        .desc        = "Facebook fby35 CraterLake BIC (Cortex-M4)",
+        .i2c_init    = oby35_cl_i2c_init,
+    },
+    {
+        .parent      = MACHINE_TYPE_NAME("ast1030-evb"),
+        .name        = "oby35-bb",
+        .desc        = "Facebook fby35 BaseBoard BIC (Cortex-M4)",
+        .i2c_init    = oby35_bb_i2c_init,
+    },
 };
 
 static void fb_register_machines(void)
@@ -1749,7 +1813,7 @@ static void fb_register_machines(void)
         snprintf(names[i], sizeof(names[i]), "%s%s", fb_machines[i].name, TYPE_MACHINE_SUFFIX);
 
         types[i].name = names[i];
-        types[i].parent = TYPE_ASPEED_MACHINE;
+        types[i].parent = fb_machines[i].parent ? fb_machines[i].parent : TYPE_ASPEED_MACHINE;
         types[i].class_init = fb_machine_class_init;
         types[i].class_data = (void*)&fb_machines[i];
     }
