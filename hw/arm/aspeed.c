@@ -1548,6 +1548,17 @@ static const struct FBMachineData fb_machines[] = {
         .stdout_path = ASPEED_DEV_UART1,
         .ram_size    = FUJI_BMC_RAM_SIZE,
     },
+    {
+        .name        = "grandcanyon-bmc",
+        .desc        = "Facebook GrandCanyon BMC (Cortex-A7)",
+        .soc_name    = "ast2600-a3",
+        .hw_strap1   = AST2600_EVB_HW_STRAP1,
+        .hw_strap2   = AST2600_EVB_HW_STRAP2,
+        .flash_model = "mx66l1g45g",
+        .macs_mask   = ASPEED_MAC3_ON,
+        .stdout_path = ASPEED_DEV_UART5,
+        .ram_size    = FUJI_BMC_RAM_SIZE,
+    },
 };
 
 static void fb_register_machines(void)
