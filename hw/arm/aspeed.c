@@ -1705,6 +1705,17 @@ static const struct FBMachineData fb_machines[] = {
         .ram_size    = 512 * MiB,
         .i2c_init    = wedge100_i2c_init,
     },
+    {
+        .name        = "wedge400-bmc",
+        .desc        = "Facebook Wedge 400 BMC (ARM1176)",
+        .soc_name    = "ast2500-a1",
+        .hw_strap1   = AST2500_EVB_HW_STRAP1,
+        .hw_strap2   = 0,
+        .flash_model = "mx66l1g45g",
+        .macs_mask   = ASPEED_MAC1_ON,
+        .stdout_path = ASPEED_DEV_UART1,
+        .ram_size    = 1 * GiB,
+    },
 };
 
 static void fb_register_machines(void)
