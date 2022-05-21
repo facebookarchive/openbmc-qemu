@@ -1636,6 +1636,17 @@ static const struct FBMachineData fb_machines[] = {
         .stdout_path = ASPEED_DEV_UART5,
         .ram_size    = 512 * MiB,
     },
+    {
+        .name        = "elbert-bmc",
+        .desc        = "Facebook Elbert BMC (Cortex-A7)",
+        .soc_name    = "ast2600-a3",
+        .hw_strap1   = AST2600_EVB_HW_STRAP1,
+        .hw_strap2   = AST2600_EVB_HW_STRAP2,
+        .flash_model = "mx25l25635e",
+        .macs_mask   = ASPEED_MAC3_ON,
+        .stdout_path = ASPEED_DEV_UART5,
+        .ram_size    = FUJI_BMC_RAM_SIZE,
+    },
 };
 
 static void fb_register_machines(void)
