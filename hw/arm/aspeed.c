@@ -1614,6 +1614,17 @@ static const struct FBMachineData fb_machines[] = {
         .stdout_path = ASPEED_DEV_UART1,
         .ram_size    = 1 * GiB,
     },
+    {
+        .name        = "angelslanding-bmc",
+        .desc        = "Facebook Angels Landing BMC (ARM1176)",
+        .soc_name    = "ast2500-a1",
+        .hw_strap1   = AST2500_EVB_HW_STRAP1,
+        .hw_strap2   = 0,
+        .flash_model = "mx25l25635e",
+        .macs_mask   = ASPEED_MAC0_ON | ASPEED_MAC1_ON,
+        .stdout_path = ASPEED_DEV_UART5,
+        .ram_size    = 512 * MiB,
+    },
 };
 
 static void fb_register_machines(void)
