@@ -449,6 +449,7 @@ class BootLinuxConsole(LinuxKernelTest):
         """
         self.do_test_arm_raspi2(0)
 
+    @skip("pdel@fb.com: This test is flaky")
     def test_arm_raspi2_initrd(self):
         """
         :avocado: tags=arch:arm
