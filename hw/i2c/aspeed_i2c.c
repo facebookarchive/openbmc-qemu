@@ -221,6 +221,10 @@
 #define I2CM_DMA_LEN          0x1c
 #define I2CS_INT_CTRL_REG     0x20
 #define I2CS_INT_STS_REG      0x24
+#define   I2CS_PKT_DONE       BIT(16)
+#define   I2CS_SLAVE_MATCH    BIT(7)
+#define   I2CS_STOP           BIT(4)
+#define   I2CS_RX_DONE        BIT(2)
 #define I2CS_CMD_STS_REG      0x28
 #define I2CS_DMA_LEN          0x2c
 #define I2CM_DMA_TX_BUF       0x30
@@ -334,16 +338,38 @@ static uint64_t aspeed_i2c_bus_read_new(void *opaque, hwaddr offset,
         value = (i2c_bus_busy(bus->bus) << 16);
         break;
     case I2CC_M_X_POOL_BUF_CTRL_REG:
+        break;
     case I2CS_INT_CTRL_REG:
+        value = bus->slave_intr_ctrl;
+        break;
     case I2CS_INT_STS_REG:
+        value = bus->slave_intr_status;
+        break;
     case I2CS_CMD_STS_REG:
+        value = bus->slave_cmd;
+        break;
     case I2CS_DMA_LEN:
+        value = bus->slave_dma_len;
+        break;
     case I2CS_DMA_TX_BUF:
+        /* FIXME: Not sure if we should return same value as RX buf */
+        value = bus->slave_dma_addr;
+        break;
     case I2CS_DMA_RX_BUF:
+        value = bus->slave_dma_addr;
+        break;
     case I2CS_SA_REG:
+        value = bus->dev_addr;
+        break;
     case I2CS_DMA_LEN_STS_REG:
+        value = bus->slave_dma_len_tx | (bus->slave_dma_len_rx << 16);
+        break;
     case I2CC_DMA_OP_ADDR_REG:
+        value = bus->slave_dma_addr;
+        break;
     case I2CC_DMA_OP_LEN_REG:
+        value = bus->slave_dma_len;
+        break;
     default:
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: Bad offset 0x%" HWADDR_PRIx "\n", __func__, offset);
@@ -870,9 +896,7 @@ static void aspeed_i2c_bus_write_new(void *opaque, hwaddr offset,
     switch (offset) {
     case I2CC_M_S_FUNC_CTRL_REG:
         if (value & I2CD_SLAVE_EN) {
-            qemu_log_mask(LOG_UNIMP, "%s: slave mode not implemented\n",
-                          __func__);
-            break;
+            i2c_slave_set_address(&bus->slave->i2c, bus->dev_addr);
         }
         bus->ctrl = value & 0x007FFFFF;
         break;
@@ -934,16 +958,44 @@ static void aspeed_i2c_bus_write_new(void *opaque, hwaddr offset,
         bus->dma_len_rx = 0;
         break;
     case I2CC_M_X_POOL_BUF_CTRL_REG:
+        break;
     case I2CS_INT_CTRL_REG:
+        bus->slave_intr_ctrl = value;
+        break;
     case I2CS_INT_STS_REG:
+        if (value & I2CM_PKT_DONE) {
+            value |= 0x280b5;
+        }
+        bus->slave_intr_status &= ~value;
+        /* FIXME: Maybe need to check master interrupt status too. */
+        if (!bus->slave_intr_status) {
+            bus->controller->intr_status &= ~(1 << bus->id);
+            qemu_irq_lower(aic->bus_get_irq(bus));
+        }
+        break;
     case I2CS_CMD_STS_REG:
+        assert(!(bus->slave_cmd >> 31));
+        bus->slave_cmd = value;
+        break;
+    case I2CS_SA_REG:
+        bus->dev_addr = value;
+        break;
     case I2CS_DMA_LEN:
+        assert(value);
+        bus->slave_dma_len = value;
+        break;
     case I2CS_DMA_TX_BUF:
     case I2CS_DMA_RX_BUF:
-    case I2CS_SA_REG:
+        bus->slave_dma_addr = value;
+        break;
     case I2CS_DMA_LEN_STS_REG:
+        bus->slave_dma_len_tx = 0;
+        bus->slave_dma_len_rx = 0;
+        break;
     case I2CC_DMA_OP_ADDR_REG:
     case I2CC_DMA_OP_LEN_REG:
+        /* Invalid to write to DMA operating status registers */
+        break;
     default:
         break;
     }
@@ -1298,10 +1350,41 @@ static const TypeInfo aspeed_i2c_info = {
     .abstract   = true,
 };
 
+static int aspeed_i2c_slave_event_new(AspeedI2CBus *bus, enum i2c_event event)
+{
+    AspeedI2CClass *aic = ASPEED_I2C_GET_CLASS(bus->controller);
+
+    switch (event) {
+    case I2C_START_SEND:
+        bus->slave_dma_len_rx = 0;
+        assert(bus->slave_dma_len_tx == 0);
+        assert(bus->slave_dma_len);
+        assert(bus->slave_dma_addr);
+        i2c_ack(bus->bus);
+        break;
+    case I2C_FINISH:
+        bus->slave_intr_status |= I2CS_PKT_DONE;
+        bus->slave_intr_status |= I2CS_SLAVE_MATCH;
+        bus->slave_intr_status |= I2CS_RX_DONE;
+        bus->slave_intr_status |= I2CS_STOP;
+        bus->controller->intr_status |= 1 << bus->id;
+        qemu_irq_raise(aic->bus_get_irq(bus));
+        break;
+    default:
+        break;
+    }
+
+    return 0;
+}
+
 static int aspeed_i2c_slave_event(I2CSlave *slave, enum i2c_event event)
 {
     AspeedI2CSlave *s = ASPEED_I2C_SLAVE(slave);
     AspeedI2CBus *bus = s->bus;
+
+    if (aspeed_i2c_bus_is_new_mode(bus)) {
+        return aspeed_i2c_slave_event_new(bus, event);
+    }
 
     switch (event) {
     case I2C_START_SEND:
@@ -1330,10 +1413,28 @@ static int aspeed_i2c_slave_event(I2CSlave *slave, enum i2c_event event)
     return 0;
 }
 
+static void aspeed_i2c_slave_send_async_new(AspeedI2CBus *bus, uint8_t data)
+{
+    MemTxResult result = address_space_write(&bus->controller->dram_as,
+                                             bus->slave_dma_addr,
+                                             MEMTXATTRS_UNSPECIFIED, &data, 1);
+    assert(result == MEMTX_OK);
+
+    bus->slave_dma_addr++;
+    bus->slave_dma_len--;
+    bus->slave_dma_len_rx++;
+
+    i2c_ack(bus->bus);
+}
+
 static void aspeed_i2c_slave_send_async(I2CSlave *slave, uint8_t data)
 {
     AspeedI2CSlave *s = ASPEED_I2C_SLAVE(slave);
     AspeedI2CBus *bus = s->bus;
+
+    if (aspeed_i2c_bus_is_new_mode(bus)) {
+        return aspeed_i2c_slave_send_async_new(bus, data);
+    }
 
     bus->buf = (data & I2CD_BYTE_BUF_RX_MASK) << I2CD_BYTE_BUF_RX_SHIFT;
     bus->intr_status |= I2CD_INTR_RX_DONE;
@@ -1370,6 +1471,15 @@ static void aspeed_i2c_bus_reset(DeviceState *dev)
     s->buf = 0;
     s->dma_addr = 0;
     s->dma_len = 0;
+    s->slave_cmd = 0;
+    s->tx_state_machine = 0;
+    s->slave_dma_addr = 0;
+    s->slave_dma_len = 0;
+    s->slave_dma_len_tx = 0;
+    s->slave_dma_len_rx = 0;
+    s->slave_intr_ctrl = 0;
+    s->slave_intr_status = 0;
+
     i2c_end_transfer(s->bus);
 }
 

@@ -61,12 +61,18 @@ struct AspeedI2CBus {
     uint32_t pool_ctrl;
     uint32_t dma_addr;
     uint32_t dma_len;
-
-    uint8_t tx_state_machine;
-    uint32_t intr_ctrl_slave;
-    uint32_t intr_status_slave;
     uint32_t dma_len_tx;
     uint32_t dma_len_rx;
+
+    uint8_t tx_state_machine;
+
+    uint32_t slave_cmd;
+    uint32_t slave_dma_addr;
+    uint32_t slave_dma_len;
+    uint32_t slave_dma_len_tx;
+    uint32_t slave_dma_len_rx;
+    uint32_t slave_intr_ctrl;
+    uint32_t slave_intr_status;
 };
 
 struct AspeedI2CState {
