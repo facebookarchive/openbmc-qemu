@@ -189,6 +189,24 @@ static void read_page_mem(uint32_t addr, uint32_t *page)
     }
 }
 
+static void write_page_mem(uint32_t addr, uint32_t write_value)
+{
+    spi_ctrl_setmode(CTRL_WRITEMODE, PP);
+
+    for (int i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
+        writel(ASPEED_FLASH_BASE + addr + i * 4, write_value);
+    }
+}
+
+static void assert_page_mem(uint32_t addr, uint32_t expected_value)
+{
+    uint32_t page[FLASH_PAGE_SIZE / 4];
+    read_page_mem(addr, page);
+    for (int i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
+        g_assert_cmphex(page[i], ==, expected_value);
+    }
+}
+
 static void test_erase_sector(void)
 {
     uint32_t some_page_addr = 0x600 * FLASH_PAGE_SIZE;
@@ -452,133 +470,88 @@ static void test_status_reg_write_protection(void)
 
 static void test_write_block_protect(void)
 {
-    uint32_t page_addr_255 = 0xff0000; /* sector 255 */
-    uint32_t page_addr_256 = 0x1000000; /* sector 256 */
-    uint32_t page_addr_510 = 0x1fe0000; /* sector 510 */
-    uint32_t page_addr_511 = 0x1ff0000; /* sector 511 */
-    uint32_t page[FLASH_PAGE_SIZE / 4];
-    int i;
+    uint32_t sector_size = 65536;
+    uint32_t n_sectors = 512;
 
     spi_ce_ctrl(1 << CRTL_EXTENDED0);
     spi_conf(CONF_ENABLE_W0);
 
-    /* Default case: all sectors unprotected */
-    spi_ctrl_start_user();
-    writeb(ASPEED_FLASH_BASE, EN_4BYTE_ADDR);
-    writeb(ASPEED_FLASH_BASE, WREN);
-    spi_ctrl_stop_user();
-    spi_ctrl_setmode(CTRL_WRITEMODE, PP);
-    /* Attempt to write to sector 0, 256, and 511 */
-    for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
-        writel(ASPEED_FLASH_BASE + i * 4, make_be32(0xabcdef12));
-        writel(ASPEED_FLASH_BASE + page_addr_256 + i * 4,
-               make_be32(0xabcdef13));
-        writel(ASPEED_FLASH_BASE + page_addr_511 + i * 4,
-               make_be32(0xabcdef14));
-    }
-    /* Check all memory is written */
-    read_page_mem(0, page);
-    for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
-        g_assert_cmphex(page[i], ==, 0xabcdef12);
-    }
-    read_page_mem(page_addr_256, page);
-    for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
-        g_assert_cmphex(page[i], ==, 0xabcdef13);
-    }
-    read_page_mem(page_addr_511, page);
-    for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
-        g_assert_cmphex(page[i], ==, 0xabcdef14);
+    uint32_t bp_bits = 0b0;
+
+    for (int i = 0; i < 16; i++) {
+        bp_bits = ((i & 0b1000) << 3) | ((i & 0b0111) << 2);
+
+        spi_ctrl_start_user();
+        writeb(ASPEED_FLASH_BASE, WREN);
+        writeb(ASPEED_FLASH_BASE, BULK_ERASE);
+        writeb(ASPEED_FLASH_BASE, WREN);
+        writeb(ASPEED_FLASH_BASE, WRSR);
+        writeb(ASPEED_FLASH_BASE, bp_bits);
+        writeb(ASPEED_FLASH_BASE, EN_4BYTE_ADDR);
+        writeb(ASPEED_FLASH_BASE, WREN);
+        spi_ctrl_stop_user();
+
+        uint32_t num_protected_sectors = i ? MIN(1 << (i - 1), n_sectors) : 0;
+        uint32_t protection_start = n_sectors - num_protected_sectors;
+        uint32_t protection_end = n_sectors;
+
+        for (int sector = 0; sector < n_sectors; sector++) {
+            uint32_t addr = sector * sector_size;
+
+            assert_page_mem(addr, 0xffffffff);
+            write_page_mem(addr, make_be32(0xabcdef12));
+
+            uint32_t expected_value = protection_start <= sector
+                                      && sector < protection_end
+                                      ? 0xffffffff : 0xabcdef12;
+
+            assert_page_mem(addr, expected_value);
+        }
     }
 
-    /* Sector 511 protected: BP0 = 1 */
-    spi_ctrl_start_user();
-    writeb(ASPEED_FLASH_BASE, WREN);
-    writeb(ASPEED_FLASH_BASE, BULK_ERASE);
-    writeb(ASPEED_FLASH_BASE, WREN);
-    writeb(ASPEED_FLASH_BASE, WRSR);
-    writeb(ASPEED_FLASH_BASE, 0x4);
-    writeb(ASPEED_FLASH_BASE, EN_4BYTE_ADDR);
-    writeb(ASPEED_FLASH_BASE, WREN);
-    spi_ctrl_stop_user();
-    spi_ctrl_setmode(CTRL_WRITEMODE, PP);
-    /* Attempt to write to sector 510 and 511 */
-    for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
-        writel(ASPEED_FLASH_BASE + page_addr_510 + i * 4,
-               make_be32(0xabcdef12));
-        writel(ASPEED_FLASH_BASE + page_addr_511 + i * 4,
-               make_be32(0xabcdef12));
-    }
-    /* Check sector 510 is written */
-    read_page_mem(page_addr_510, page);
-    for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
-        g_assert_cmphex(page[i], ==, 0xabcdef12);
-    }
-    /* Check sector 511 is not written */
-    read_page_mem(page_addr_511, page);
-    for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
-        g_assert_cmphex(page[i], ==, 0xffffffff);
-    }
+    flash_reset();
+}
 
-    /* Sectors 256 to 511 are protected: BP0, BP3 = 1 */
-    spi_ctrl_start_user();
-    writeb(ASPEED_FLASH_BASE, WREN);
-    writeb(ASPEED_FLASH_BASE, BULK_ERASE);
-    writeb(ASPEED_FLASH_BASE, WREN);
-    writeb(ASPEED_FLASH_BASE, WRSR);
-    writeb(ASPEED_FLASH_BASE, 0x44);
-    writeb(ASPEED_FLASH_BASE, EN_4BYTE_ADDR);
-    writeb(ASPEED_FLASH_BASE, WREN);
-    spi_ctrl_stop_user();
-    spi_ctrl_setmode(CTRL_WRITEMODE, PP);
-    /* Attempt to write to sector 256 (protected) and 255 (unprotected) */
-    for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
-        writel(ASPEED_FLASH_BASE + page_addr_255 + i * 4,
-               make_be32(0xabcdef12));
-        writel(ASPEED_FLASH_BASE + page_addr_256 + i * 4,
-               make_be32(0xabcdef12));
-    }
-    /* Check sector 255 is written */
-    read_page_mem(page_addr_255, page);
-    for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
-        g_assert_cmphex(page[i], ==, 0xabcdef12);
-    }
-    /* Check sector 256 is not written */
-    read_page_mem(page_addr_256, page);
-    for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
-        g_assert_cmphex(page[i], ==, 0xffffffff);
-    }
+static void test_write_block_protect_bottom_bit(void)
+{
+    uint32_t sector_size = 65536;
+    uint32_t n_sectors = 512;
 
-    /* All sectors are protected: BP0, BP1, BP2, BP3 = 1 */
-    spi_ctrl_start_user();
-    writeb(ASPEED_FLASH_BASE, WREN);
-    writeb(ASPEED_FLASH_BASE, BULK_ERASE);
-    writeb(ASPEED_FLASH_BASE, WREN);
-    writeb(ASPEED_FLASH_BASE, WRSR);
-    writeb(ASPEED_FLASH_BASE, 0x5C);
-    writeb(ASPEED_FLASH_BASE, EN_4BYTE_ADDR);
-    writeb(ASPEED_FLASH_BASE, WREN);
-    spi_ctrl_stop_user();
-    spi_ctrl_setmode(CTRL_WRITEMODE, PP);
-    /* Attempt to write to sector 0, 256, 511 */
-    for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
-        writel(ASPEED_FLASH_BASE + i * 4, make_be32(0xabcdef12));
-        writel(ASPEED_FLASH_BASE + page_addr_256 + i * 4,
-               make_be32(0xabcdef12));
-        writel(ASPEED_FLASH_BASE + page_addr_511 + i * 4,
-               make_be32(0xabcdef12));
-    }
-    /* Check that no memory is written */
-    read_page_mem(0, page);
-    for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
-        g_assert_cmphex(page[i], ==, 0xffffffff);
-    }
-    read_page_mem(page_addr_256, page);
-    for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
-        g_assert_cmphex(page[i], ==, 0xffffffff);
-    }
-    read_page_mem(page_addr_511, page);
-    for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
-        g_assert_cmphex(page[i], ==, 0xffffffff);
+    spi_ce_ctrl(1 << CRTL_EXTENDED0);
+    spi_conf(CONF_ENABLE_W0);
+
+    /* top bottom bit is enabled */
+    uint32_t bp_bits = 0b00100 << 3;
+
+    for (int i = 0; i < 16; i++) {
+        bp_bits = (((i & 0b1000) | 0b0100) << 3) | ((i & 0b0111) << 2);
+
+        spi_ctrl_start_user();
+        writeb(ASPEED_FLASH_BASE, WREN);
+        writeb(ASPEED_FLASH_BASE, BULK_ERASE);
+        writeb(ASPEED_FLASH_BASE, WREN);
+        writeb(ASPEED_FLASH_BASE, WRSR);
+        writeb(ASPEED_FLASH_BASE, bp_bits);
+        writeb(ASPEED_FLASH_BASE, EN_4BYTE_ADDR);
+        writeb(ASPEED_FLASH_BASE, WREN);
+        spi_ctrl_stop_user();
+
+        uint32_t num_protected_sectors = i ? MIN(1 << (i - 1), n_sectors) : 0;
+        uint32_t protection_start = 0;
+        uint32_t protection_end = num_protected_sectors;
+
+        for (int sector = 0; sector < n_sectors; sector++) {
+            uint32_t addr = sector * sector_size;
+
+            assert_page_mem(addr, 0xffffffff);
+            write_page_mem(addr, make_be32(0xabcdef12));
+
+            uint32_t expected_value = protection_start <= sector
+                                      && sector < protection_end
+                                      ? 0xffffffff : 0xabcdef12;
+
+            assert_page_mem(addr, expected_value);
+        }
     }
 
     flash_reset();
@@ -614,6 +587,8 @@ int main(int argc, char **argv)
                    test_status_reg_write_protection);
     qtest_add_func("/ast2400/smc/write_block_protect",
                    test_write_block_protect);
+    qtest_add_func("/ast2400/smc/write_block_protect_bottom_bit",
+                   test_write_block_protect_bottom_bit);
 
     ret = g_test_run();
 
