@@ -137,6 +137,9 @@ static void flash_reset(void)
     spi_ctrl_start_user();
     writeb(ASPEED_FLASH_BASE, RESET_ENABLE);
     writeb(ASPEED_FLASH_BASE, RESET_MEMORY);
+    writeb(ASPEED_FLASH_BASE, WREN);
+    writeb(ASPEED_FLASH_BASE, BULK_ERASE);
+    writeb(ASPEED_FLASH_BASE, WRDI);
     spi_ctrl_stop_user();
 
     spi_conf_remove(CONF_ENABLE_W0);
@@ -215,6 +218,33 @@ static void test_erase_sector(void)
 
     spi_conf(CONF_ENABLE_W0);
 
+    /*
+     * Previous page should be full of 0xffs after backend is
+     * initialized
+     */
+    read_page(some_page_addr - FLASH_PAGE_SIZE, page);
+    for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
+        g_assert_cmphex(page[i], ==, 0xffffffff);
+    }
+
+    spi_ctrl_start_user();
+    writeb(ASPEED_FLASH_BASE, EN_4BYTE_ADDR);
+    writeb(ASPEED_FLASH_BASE, WREN);
+    writeb(ASPEED_FLASH_BASE, PP);
+    writel(ASPEED_FLASH_BASE, make_be32(some_page_addr));
+
+    /* Fill the page with its own addresses */
+    for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
+        writel(ASPEED_FLASH_BASE, make_be32(some_page_addr + i * 4));
+    }
+    spi_ctrl_stop_user();
+
+    /* Check the page is correctly written */
+    read_page(some_page_addr, page);
+    for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
+        g_assert_cmphex(page[i], ==, some_page_addr + i * 4);
+    }
+
     spi_ctrl_start_user();
     writeb(ASPEED_FLASH_BASE, WREN);
     writeb(ASPEED_FLASH_BASE, EN_4BYTE_ADDR);
@@ -222,14 +252,7 @@ static void test_erase_sector(void)
     writel(ASPEED_FLASH_BASE, make_be32(some_page_addr));
     spi_ctrl_stop_user();
 
-    /* Previous page should be full of zeroes as backend is not
-     * initialized */
-    read_page(some_page_addr - FLASH_PAGE_SIZE, page);
-    for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
-        g_assert_cmphex(page[i], ==, 0x0);
-    }
-
-    /* But this one was erased */
+    /* Check the page is erased */
     read_page(some_page_addr, page);
     for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
         g_assert_cmphex(page[i], ==, 0xffffffff);
@@ -246,11 +269,31 @@ static void test_erase_all(void)
 
     spi_conf(CONF_ENABLE_W0);
 
-    /* Check some random page. Should be full of zeroes as backend is
-     * not initialized */
+    /*
+     * Previous page should be full of 0xffs after backend is
+     * initialized
+     */
+    read_page(some_page_addr - FLASH_PAGE_SIZE, page);
+    for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
+        g_assert_cmphex(page[i], ==, 0xffffffff);
+    }
+
+    spi_ctrl_start_user();
+    writeb(ASPEED_FLASH_BASE, EN_4BYTE_ADDR);
+    writeb(ASPEED_FLASH_BASE, WREN);
+    writeb(ASPEED_FLASH_BASE, PP);
+    writel(ASPEED_FLASH_BASE, make_be32(some_page_addr));
+
+    /* Fill the page with its own addresses */
+    for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
+        writel(ASPEED_FLASH_BASE, make_be32(some_page_addr + i * 4));
+    }
+    spi_ctrl_stop_user();
+
+    /* Check the page is correctly written */
     read_page(some_page_addr, page);
     for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
-        g_assert_cmphex(page[i], ==, 0x0);
+        g_assert_cmphex(page[i], ==, some_page_addr + i * 4);
     }
 
     spi_ctrl_start_user();
@@ -258,7 +301,7 @@ static void test_erase_all(void)
     writeb(ASPEED_FLASH_BASE, BULK_ERASE);
     spi_ctrl_stop_user();
 
-    /* Recheck that some random page */
+    /* Check the page is erased */
     read_page(some_page_addr, page);
     for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
         g_assert_cmphex(page[i], ==, 0xffffffff);
@@ -319,6 +362,14 @@ static void test_read_page_mem(void)
     spi_conf(CONF_ENABLE_W0);
     spi_ctrl_start_user();
     writeb(ASPEED_FLASH_BASE, EN_4BYTE_ADDR);
+    writeb(ASPEED_FLASH_BASE, WREN);
+    writeb(ASPEED_FLASH_BASE, PP);
+    writel(ASPEED_FLASH_BASE, make_be32(my_page_addr));
+
+    /* Fill the page with its own addresses */
+    for (i = 0; i < FLASH_PAGE_SIZE / 4; i++) {
+        writel(ASPEED_FLASH_BASE, make_be32(my_page_addr + i * 4));
+    }
     spi_ctrl_stop_user();
     spi_conf_remove(CONF_ENABLE_W0);
 
@@ -590,6 +641,7 @@ int main(int argc, char **argv)
     qtest_add_func("/ast2400/smc/write_block_protect_bottom_bit",
                    test_write_block_protect_bottom_bit);
 
+    flash_reset();
     ret = g_test_run();
 
     qtest_quit(global_qtest);
