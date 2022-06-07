@@ -26,6 +26,7 @@
 #include "qemu/error-report.h"
 #include "qemu/units.h"
 #include "hw/qdev-clock.h"
+#include "hw/ssi/spi_gpio.h"
 
 static struct arm_boot_info aspeed_board_binfo = {
     .board_id = -1, /* device-tree-only board */
@@ -173,6 +174,11 @@ struct AspeedMachineState {
 /* TODO: Leave same as EVB for now. */
 #define BLETCHLEY_BMC_HW_STRAP1 AST2600_EVB_HW_STRAP1
 #define BLETCHLEY_BMC_HW_STRAP2 AST2600_EVB_HW_STRAP2
+
+/* ASPEED GPIO propname values */
+#define AST_GPIO_IRQ_X0_NUM 185
+#define AST_GPIO_IRQ_X3_NUM 188
+#define AST_GPIO_IRQ_X4_NUM 189
 
 /*
  * The max ram region is for firmwares that scan the address space
@@ -368,6 +374,24 @@ static void aspeed_machine_init(MachineState *machine)
     qdev_prop_set_uint32(DEVICE(&bmc->soc), "uart-default",
                          amc->uart_default);
     qdev_realize(DEVICE(&bmc->soc), NULL, &error_abort);
+
+    SpiGpioState *spi_gpio = SPI_GPIO(qdev_new(TYPE_SPI_GPIO));
+    spi_gpio->aspeed_gpio = &bmc->soc.gpio;
+    qdev_realize(DEVICE(spi_gpio), NULL, &error_fatal);
+
+    DeviceState *m25p80 = qdev_new("n25q256a");
+    qdev_realize(m25p80, BUS(spi_gpio->spi), &error_fatal);
+
+    qdev_connect_gpio_out_named(DEVICE(&bmc->soc.gpio), "sysbus-irq", AST_GPIO_IRQ_X0_NUM,
+                                qdev_get_gpio_in_named(DEVICE(spi_gpio), "SPI_CS_in", 0));
+    qdev_connect_gpio_out_named(DEVICE(&bmc->soc.gpio), "sysbus-irq", AST_GPIO_IRQ_X3_NUM,
+                                qdev_get_gpio_in_named(DEVICE(spi_gpio), "SPI_CLK", 0));
+    qdev_connect_gpio_out_named(DEVICE(&bmc->soc.gpio), "sysbus-irq", AST_GPIO_IRQ_X4_NUM,
+                                qdev_get_gpio_in_named(DEVICE(spi_gpio), "SPI_MOSI", 0));
+
+    qdev_connect_gpio_out_named(DEVICE(spi_gpio), "SPI_CS_out", 0,
+                                qdev_get_gpio_in_named(m25p80, SSI_GPIO_CS, 0));
+    object_property_set_bool(OBJECT(spi_gpio->aspeed_gpio), "gpioX5", true, &error_fatal);
 
     memory_region_add_subregion(get_system_memory(),
                                 sc->memmap[ASPEED_DEV_SDRAM],
