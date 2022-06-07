@@ -13,7 +13,7 @@ Building QEMU
   dnf install ninja-build glib2-devel pixman-devel
 
   git clone https://github.com/facebook/openbmc-qemu
-  cd qemu
+  cd openbmc-qemu
   ./configure --target-list=arm-softmmu
   make -j $(nproc)
 
