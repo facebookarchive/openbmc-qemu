@@ -473,7 +473,7 @@ struct Flash {
     uint8_t spansion_cr2v;
     uint8_t spansion_cr3v;
     uint8_t spansion_cr4v;
-    bool write_protect_pin;
+    bool wp_level;
     bool write_enable;
     bool four_bytes_address_mode;
     bool reset_enable;
@@ -755,13 +755,13 @@ static void complete_collecting_data(Flash *s)
         break;
     case WRSR:
         /*
-         * If W# is low and status_register_write_disabled is high,
+         * If WP# is low and status_register_write_disabled is high,
          * status register writes are disabled.
          * This is also called "hardware protected mode" (HPM). All other
          * combinations of the two states are called "software protected mode"
          * (SPM), and status register writes are permitted.
          */
-        if ((s->write_protect_pin == 0 && s->status_register_write_disabled)
+        if ((s->wp_level == 0 && s->status_register_write_disabled)
             || !s->write_enable) {
             qemu_log_mask(LOG_GUEST_ERROR,
                           "M25P80: Status register write is disabled!\n");
@@ -1551,10 +1551,9 @@ static uint32_t m25p80_transfer8(SSIPeripheral *ss, uint32_t tx)
 static void m25p80_write_protect_pin_irq_handler(void *opaque, int n, int level)
 {
     Flash *s = M25P80(opaque);
-    bool wp = !!level;
-    /* W# is just a single pin. */
+    /* WP# is just a single pin. */
     assert(n == 0);
-    s->write_protect_pin = wp;
+    s->wp_level = !!level;
 }
 
 static void m25p80_realize(SSIPeripheral *ss, Error **errp)
@@ -1590,14 +1589,14 @@ static void m25p80_realize(SSIPeripheral *ss, Error **errp)
     }
 
     qdev_init_gpio_in_named(DEVICE(s),
-                            m25p80_write_protect_pin_irq_handler, "W#", 1);
+                            m25p80_write_protect_pin_irq_handler, "WP#", 1);
 }
 
 static void m25p80_reset(DeviceState *d)
 {
     Flash *s = M25P80(d);
 
-    s->write_protect_pin = true;
+    s->wp_level = true;
     s->status_register_write_disabled = false;
     s->block_protect0 = false;
     s->block_protect1 = false;
@@ -1685,7 +1684,8 @@ static const VMStateDescription vmstate_m25p80 = {
         VMSTATE_UINT8(needed_bytes, Flash),
         VMSTATE_UINT8(cmd_in_progress, Flash),
         VMSTATE_UINT32(cur_addr, Flash),
-        VMSTATE_BOOL(write_protect_pin, Flash),
+        VMSTATE_BOOL(wp_level, Flash),
+        VMSTATE_BOOL(status_register_write_disabled, Flash),
         VMSTATE_BOOL(write_enable, Flash),
         VMSTATE_BOOL(reset_enable, Flash),
         VMSTATE_UINT8(ear, Flash),
@@ -1707,38 +1707,6 @@ static const VMStateDescription vmstate_m25p80 = {
     }
 };
 
-static void m25p80_get_write_protect_pin(Object *obj,
-                                       Visitor *v,
-                                       const char *name,
-                                       void *opaque,
-                                       Error **errp)
-{
-    Flash *s = M25P80(obj);
-    bool value;
-
-    value = s->write_protect_pin;
-
-    visit_type_bool(v, name, &value, errp);
-}
-
-static void m25p80_set_write_protect_pin(Object *obj,
-                                       Visitor *v,
-                                       const char *name,
-                                       void *opaque,
-                                       Error **errp)
-{
-    Flash *s = M25P80(obj);
-    bool value;
-    qemu_irq w;
-
-    if (!visit_type_bool(v, name, &value, errp)) {
-        return;
-    }
-
-    w = qdev_get_gpio_in_named(DEVICE(s), "W#", 0);
-    qemu_set_irq(w, value);
-}
-
 static void m25p80_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
@@ -1753,9 +1721,6 @@ static void m25p80_class_init(ObjectClass *klass, void *data)
     device_class_set_props(dc, m25p80_properties);
     dc->reset = m25p80_reset;
     mc->pi = data;
-
-    object_class_property_add(klass, "W#", "bool", m25p80_get_write_protect_pin,
-                              m25p80_set_write_protect_pin, NULL, NULL);
 }
 
 static const TypeInfo m25p80_info = {

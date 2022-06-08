@@ -467,7 +467,7 @@ static void test_status_reg_write_protection(void)
 
     spi_conf(CONF_ENABLE_W0);
 
-    /* default case: W# is high and SRWD is low -> status register writable */
+    /* default case: WP# is high and SRWD is low -> status register writable */
     spi_ctrl_start_user();
     writeb(ASPEED_FLASH_BASE, WREN);
     /* test ability to write SRWD */
@@ -478,7 +478,7 @@ static void test_status_reg_write_protection(void)
     spi_ctrl_stop_user();
     g_assert_cmphex(r & SRWD, ==, SRWD);
 
-    /* W# high and SRWD high -> status register writable */
+    /* WP# high and SRWD high -> status register writable */
     spi_ctrl_start_user();
     writeb(ASPEED_FLASH_BASE, WREN);
     /* test ability to write SRWD */
@@ -489,9 +489,9 @@ static void test_status_reg_write_protection(void)
     spi_ctrl_stop_user();
     g_assert_cmphex(r & SRWD, ==, 0);
 
-    /* W# low and SRWD low -> status register writable */
-    qtest_qom_set_bool(global_qtest,
-                       "/machine/soc/fmc/ssi.0/child[0]", "W#", false);
+    /* WP# low and SRWD low -> status register writable */
+    qtest_set_irq_in(global_qtest,
+                     "/machine/soc/fmc/ssi.0/child[0]", "WP#", 0, 0);
     spi_ctrl_start_user();
     writeb(ASPEED_FLASH_BASE, WREN);
     /* test ability to write SRWD */
@@ -502,7 +502,7 @@ static void test_status_reg_write_protection(void)
     spi_ctrl_stop_user();
     g_assert_cmphex(r & SRWD, ==, SRWD);
 
-    /* W# low and SRWD high -> status register NOT writable */
+    /* WP# low and SRWD high -> status register NOT writable */
     spi_ctrl_start_user();
     writeb(ASPEED_FLASH_BASE, WREN);
     /* test ability to write SRWD */
@@ -514,8 +514,8 @@ static void test_status_reg_write_protection(void)
     /* write is not successful */
     g_assert_cmphex(r & SRWD, ==, SRWD);
 
-    qtest_qom_set_bool(global_qtest,
-                       "/machine/soc/fmc/ssi.0/child[0]", "W#", true);
+    qtest_set_irq_in(global_qtest,
+                     "/machine/soc/fmc/ssi.0/child[0]", "WP#", 0, 1);
     flash_reset();
 }
 
