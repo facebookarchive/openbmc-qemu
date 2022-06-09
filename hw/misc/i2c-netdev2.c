@@ -7,8 +7,15 @@
 #include "net/eth.h"
 #include "block/aio.h"
 
+#define DATA_LEN 1
+#define ACK_LEN 2
 #define START_LEN 3
-#define STOP_LEN 2
+#define STOP_LEN 4
+#define DEBUG 0
+
+#if !DEBUG
+#define printf(...)
+#endif
 
 #define TYPE_I2C_NETDEV2 "i2c-netdev2"
 OBJECT_DECLARE_SIMPLE_TYPE(I2CNetdev2, I2C_NETDEV2)
@@ -22,31 +29,24 @@ struct I2CNetdev2 {
     NICState *nic;
     QEMUBH *bh;
 
-    uint8_t rx_buf[3];
+    uint8_t rx_buf[10];
     int rx_len;
     bool rx_ack_pending;
 };
 
-static bool i2c_netdev2_nic_can_receive(NetClientState *nc)
+static void print_bytes(const uint8_t *buf, size_t len)
 {
-    I2CNetdev2 *s = I2C_NETDEV2(qemu_get_nic_opaque(nc));
+    int i;
 
-    return s->rx_len == 0;
+    printf("[");
+    for (i = 0; i < len; i++) {
+        if (i) {
+            printf(", ");
+        }
+        printf("%02x", buf[i]);
+    }
+    printf("]");
 }
-
-// static void print_bytes(const uint8_t *buf, size_t len)
-// {
-//     int i;
-// 
-//     printf("[");
-//     for (i = 0; i < len; i++) {
-//         if (i) {
-//             printf(", ");
-//         }
-//         printf("%02x", buf[i]);
-//     }
-//     printf("]");
-// }
 
 static ssize_t i2c_netdev2_nic_receive(NetClientState *nc, const uint8_t *buf, size_t len);
 
@@ -60,33 +60,39 @@ static void i2c_netdev2_nic_cleanup(NetClientState *nc)
 static NetClientInfo net_client_info = {
     .type = NET_CLIENT_DRIVER_NIC,
     .size = sizeof(NetClientState),
-    .can_receive = i2c_netdev2_nic_can_receive,
     .receive = i2c_netdev2_nic_receive,
     .cleanup = i2c_netdev2_nic_cleanup,
 };
 
 static ssize_t i2c_netdev2_nic_receive(NetClientState *nc, const uint8_t *buf, size_t len)
 {
-    // printf("%s: ", __func__);
-    // print_bytes(buf, len);
-    // printf("\n");
+    printf("%s: rx ", __FILE__);
+    print_bytes(buf, len);
+    printf("\n");
 
     I2CNetdev2 *s = I2C_NETDEV2(qemu_get_nic_opaque(nc));
 
+    if (len == ACK_LEN) {
+        return len;
+    }
+
+    printf("prev rx_buf: ");
+    print_bytes(s->rx_buf, sizeof(s->rx_buf));
+    printf("\n");
+    
     assert(len <= sizeof(s->rx_buf));
     memcpy(s->rx_buf, buf, len);
     s->rx_len = len;
+
+    printf("next rx_buf: ");
+    print_bytes(s->rx_buf, sizeof(s->rx_buf));
+    printf("\n");
 
     switch (len) {
     case START_LEN:
         i2c_bus_master(s->bus, s->bh);
         break;
-    case 1:
-        // This is probably an ack/nack packet.
-        if (s->bus->bh != s->bh) {
-            s->rx_len = 0;
-            break;
-        }
+    case DATA_LEN:
         qemu_bh_schedule(s->bh);
         break;
     case STOP_LEN:
@@ -94,7 +100,7 @@ static ssize_t i2c_netdev2_nic_receive(NetClientState *nc, const uint8_t *buf, s
         break;
     default:
         printf("%s: unexpected packet len: %ld\n", __func__, len);
-        abort();
+        break;
     }
 
     return len;
@@ -105,13 +111,15 @@ static void i2c_netdev2_slave_mode_rx(void *opaque)
     I2CNetdev2 *s = opaque;
     NetClientState *netdev = qemu_get_queue(s->nic);
     uint8_t rx_addr;
-    uint8_t ack = 1;
+    uint8_t ack[2] = {1, 0};
 
-    // printf("%s: rx_len=%d\n", __func__, s->rx_len);
+    printf("%s: rx_len=%d\n", __func__, s->rx_len);
 
     if (s->rx_ack_pending) {
+        printf("%s: guest OS ack rx, clearing rx_len\n", __func__);
         s->rx_ack_pending = false;
         s->rx_len = 0;
+        qemu_send_packet(netdev, ack, sizeof(ack));
         return;
     }
 
@@ -122,14 +130,15 @@ static void i2c_netdev2_slave_mode_rx(void *opaque)
         rx_addr >>= 1;
         if (i2c_start_send(s->bus, rx_addr) != 0) {
             printf("%s: i2c_start_send to 0x%02x failed\n", __func__, rx_addr);
-            ack = 0;
+            ack[0] = 0;
             i2c_bus_release(s->bus);
+            qemu_send_packet(netdev, ack, sizeof(ack));
+            s->rx_len = 0;
+            return;
         }
-        qemu_send_packet(netdev, &ack, sizeof(ack));
         break;
-    case 1:
+    case DATA_LEN:
         i2c_send_async(s->bus, s->rx_buf[0]);
-        qemu_send_packet(netdev, &ack, sizeof(ack));
         break;
     case STOP_LEN:
         i2c_end_transfer(s->bus);
@@ -137,7 +146,7 @@ static void i2c_netdev2_slave_mode_rx(void *opaque)
         return;
     default:
         printf("%s: unexpected rx_len %d\n", __func__, s->rx_len);
-        abort();
+        break;
     }
 
     s->rx_ack_pending = true;
@@ -172,10 +181,18 @@ static int i2c_netdev2_handle_event(I2CSlave *i2c, enum i2c_event event)
         memset(start_msg, 0, sizeof(start_msg));
         start_msg[0] = tx_addr;
         qemu_send_packet(netdev, start_msg, sizeof(start_msg));
+        printf("%s: tx ", __FILE__);
+        print_bytes(start_msg, sizeof(start_msg));
+        printf("\n");
+        //sleep(1);
         break;
     case I2C_FINISH:
         memset(stop_msg, 0, sizeof(stop_msg));
         qemu_send_packet(netdev, stop_msg, sizeof(stop_msg));
+        printf("%s: tx ", __FILE__);
+        print_bytes(stop_msg, sizeof(stop_msg));
+        printf("\n");
+        //sleep(1);
         break;
     case I2C_NACK:
         printf("%s: NACK UNIMPLEMENTED\n", __func__);
@@ -195,8 +212,13 @@ static int i2c_netdev2_handle_send(I2CSlave *i2c, uint8_t byte)
 {
     I2CNetdev2 *s = I2C_NETDEV2(i2c);
     NetClientState *netdev = qemu_get_queue(s->nic);
+    uint8_t data_msg[DATA_LEN] = {byte};
 
-    qemu_send_packet(netdev, &byte, sizeof(byte));
+    qemu_send_packet(netdev, data_msg, sizeof(data_msg));
+    printf("%s: tx ", __FILE__);
+    print_bytes(data_msg, sizeof(data_msg));
+    printf("\n");
+    //sleep(1);
 
     return 0;
 }

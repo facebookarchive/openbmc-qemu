@@ -56,6 +56,11 @@
 #define   I2CD_BYTE_BUF_RX_SHIFT           8
 #define   I2CD_BYTE_BUF_RX_MASK            0xff
 
+#define DATA_LEN 1
+#define ACK_LEN 2
+#define START_LEN 3
+#define STOP_LEN 4
+
 static void aspeed_i2c_master_mode_tx(const uint8_t *buf, int len)
 {
     int i;
@@ -111,11 +116,11 @@ static int udp_socket;
 static void test_write_in_old_byte_mode(void)
 {
     uint8_t pkt[] = {0x64, 0xde, 0xad, 0xbe, 0xef};
-    uint8_t buf[3];
+    uint8_t buf[10];
     ssize_t n;
     int i;
     struct sockaddr_in rx_addr;
-    bool ack = true;
+    uint8_t ack[ACK_LEN] = {1, 0};
 
     rx_addr.sin_family = AF_INET;
     rx_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
@@ -129,24 +134,25 @@ static void test_write_in_old_byte_mode(void)
     aspeed_i2c_master_mode_tx(pkt, sizeof(pkt));
 
     n = recv(udp_socket, buf, sizeof(buf), 0);
-    g_assert_cmphex(n, ==, 3);
+    g_assert_cmphex(n, ==, START_LEN);
     g_assert_cmphex(buf[0], ==, pkt[0]);
-    sendto(udp_socket, &ack, sizeof(ack), 0, (const struct sockaddr_in*)&rx_addr, sizeof(rx_addr));
+    sendto(udp_socket, ack, sizeof(ack), 0, (const struct sockaddr_in*)&rx_addr, sizeof(rx_addr));
 
     for (i = 1; i < sizeof(pkt); i++) {
         n = recv(udp_socket, buf, sizeof(buf), 0);
-        g_assert_cmphex(n, ==, 1);
+        g_assert_cmphex(n, ==, DATA_LEN);
         g_assert_cmphex(buf[0], ==, pkt[i]);
-        sendto(udp_socket, &ack, sizeof(ack), 0, (const struct sockaddr_in*)&rx_addr, sizeof(rx_addr));
+        sendto(udp_socket, ack, sizeof(ack), 0, (const struct sockaddr_in*)&rx_addr, sizeof(rx_addr));
     }
 
     n = recv(udp_socket, buf, sizeof(buf), 0);
-    g_assert_cmphex(n, ==, 2);
+    g_assert_cmphex(n, ==, STOP_LEN);
 }
 
 static void test_slave_mode_rx_byte_buf(void)
 {
     uint8_t b;
+    uint32_t sts;
 
     g_assert(!(readl(ASPEED_I2C_BASE + I2C_CTRL_GLOBAL) & I2C_CTRL_NEW_REG_MODE));
 
@@ -161,19 +167,29 @@ static void test_slave_mode_rx_byte_buf(void)
     dst.sin_port = htons(6000);
 
     uint8_t pkt[] = {0x20, 0xde, 0xad, 0xbe, 0xef};
-    uint8_t buf[3] = {};
+    uint8_t buf[10] = {};
 
     buf[0] = 0x20;
-    sendto(udp_socket, buf, 3, 0, (const struct sockaddr*)&dst, sizeof(dst));
+    sendto(udp_socket, buf, START_LEN, 0, (const struct sockaddr*)&dst, sizeof(dst));
     b = aspeed_i2c_slave_mode_rx_byte();
     g_assert_cmphex(b, ==, buf[0]);
 
     for (int i = 1; i < sizeof(pkt); i++) {
         buf[0] = pkt[i];
-        sendto(udp_socket, buf, 1, 0, (const struct sockaddr*)&dst, sizeof(dst));
+        sendto(udp_socket, buf, DATA_LEN, 0, (const struct sockaddr*)&dst, sizeof(dst));
         b = aspeed_i2c_slave_mode_rx_byte();
         g_assert_cmphex(b, ==, buf[0]);
     }
+
+    sendto(udp_socket, buf, STOP_LEN, 0, (const struct sockaddr*)&dst, sizeof(dst));
+    for (int i = 0; i < 10000; i++) {
+        sts = readl(ASPEED_I2C_BUS0_BASE + I2CD_INTR_STS_REG);
+        writel(ASPEED_I2C_BUS0_BASE + I2CD_INTR_STS_REG, sts);
+        if (sts & I2CD_INTR_NORMAL_STOP) {
+            break;
+        }
+    }
+    g_assert(sts & I2CD_INTR_NORMAL_STOP);
 }
 
 static int udp_socket_init(const char *ip_addr, uint16_t port)
