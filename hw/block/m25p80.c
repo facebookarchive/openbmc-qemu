@@ -754,19 +754,6 @@ static void complete_collecting_data(Flash *s)
         flash_erase(s, s->cur_addr, s->cmd_in_progress);
         break;
     case WRSR:
-        /*
-         * If WP# is low and status_register_write_disabled is high,
-         * status register writes are disabled.
-         * This is also called "hardware protected mode" (HPM). All other
-         * combinations of the two states are called "software protected mode"
-         * (SPM), and status register writes are permitted.
-         */
-        if ((s->wp_level == 0 && s->status_register_write_disabled)
-            || !s->write_enable) {
-            qemu_log_mask(LOG_GUEST_ERROR,
-                          "M25P80: Status register write is disabled!\n");
-            break;
-        }
         s->status_register_write_disabled = extract32(s->data[0], 7, 1);
         s->block_protect0 = extract32(s->data[0], 2, 1);
         s->block_protect1 = extract32(s->data[0], 3, 1);
@@ -1220,6 +1207,20 @@ static void decode_new_cmd(Flash *s, uint32_t value)
         break;
 
     case WRSR:
+        /*
+         * If WP# is low and status_register_write_disabled is high,
+         * status register writes are disabled.
+         * This is also called "hardware protected mode" (HPM). All other
+         * combinations of the two states are called "software protected mode"
+         * (SPM), and status register writes are permitted.
+         */
+        if ((s->wp_level == 0 && s->status_register_write_disabled)
+            || !s->write_enable) {
+            qemu_log_mask(LOG_GUEST_ERROR,
+                          "M25P80: Status register write is disabled!\n");
+            break;
+        }
+
         switch (get_man(s)) {
         case MAN_SPANSION:
             s->needed_bytes = 2;
@@ -1670,6 +1671,18 @@ static const VMStateDescription vmstate_m25p80_aai_enable = {
     }
 };
 
+static const VMStateDescription vmstate_m25p80_write_protect = {
+    .name = "m25p80/write_protect",
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .needed = false,
+    .fields = (VMStateField[]) {
+        VMSTATE_BOOL(wp_level, Flash),
+        VMSTATE_BOOL(status_register_write_disabled, Flash),
+        VMSTATE_END_OF_LIST()
+    }
+};
+
 static const VMStateDescription vmstate_m25p80 = {
     .name = "m25p80",
     .version_id = 0,
@@ -1684,8 +1697,6 @@ static const VMStateDescription vmstate_m25p80 = {
         VMSTATE_UINT8(needed_bytes, Flash),
         VMSTATE_UINT8(cmd_in_progress, Flash),
         VMSTATE_UINT32(cur_addr, Flash),
-        VMSTATE_BOOL(wp_level, Flash),
-        VMSTATE_BOOL(status_register_write_disabled, Flash),
         VMSTATE_BOOL(write_enable, Flash),
         VMSTATE_BOOL(reset_enable, Flash),
         VMSTATE_UINT8(ear, Flash),
@@ -1703,6 +1714,7 @@ static const VMStateDescription vmstate_m25p80 = {
     .subsections = (const VMStateDescription * []) {
         &vmstate_m25p80_data_read_loop,
         &vmstate_m25p80_aai_enable,
+        &vmstate_m25p80_write_protect,
         NULL
     }
 };
