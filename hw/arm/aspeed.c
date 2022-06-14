@@ -1433,7 +1433,7 @@ static void aspeed_machine_fby35_class_init(ObjectClass *oc, void *data)
 
     mc->desc       = "Facebook fby35 BMC (Cortex-A7)";
     mc->reset      = fby35_reset;
-    amc->fmc_model = "mx66l1g45g";
+    amc->fmc_model = "n25q00";
     amc->num_cs    = 2;
     amc->macs_mask = ASPEED_MAC3_ON;
     amc->i2c_init  = fby35_i2c_init;
@@ -1654,7 +1654,7 @@ static const struct FBMachineData fb_machines[] = {
         .soc_name    = "ast2600-a3",
         .hw_strap1   = AST2600_EVB_HW_STRAP1,
         .hw_strap2   = AST2600_EVB_HW_STRAP2,
-        .flash_model = "mx66l1g45g",
+        .flash_model = "n25q00",
         .macs_mask   = ASPEED_MAC3_ON,
         .stdout_path = ASPEED_DEV_UART5,
         .ram_size    = FUJI_BMC_RAM_SIZE,

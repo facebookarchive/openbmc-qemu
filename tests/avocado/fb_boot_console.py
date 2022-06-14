@@ -31,6 +31,7 @@ class BootTests(QemuSystemTest):
                          'user,id=nic,mfr-id=0x8119,oob-eth-addr=de:ad:be:ef:ca:fe,hostfwd=::2222-:22',
                          '-net', 'nic,model=ftgmac100,netdev=nic')
         self.vm.launch()
+        wait_for_console_pattern(self, 'vboot_verify_uboot 387', vm=self.vm)
         wait_for_console_pattern(self, 'OpenBMC Release fby35-e2294ff5d3', vm=self.vm)
 
         # FIXME: For some reason the login prompt doesn't appear, but if we can get it to work, I'd
@@ -39,6 +40,20 @@ class BootTests(QemuSystemTest):
         #exec_command_and_wait_for_pattern(self, 'root', 'Password:')
         #exec_command_and_wait_for_pattern(self, '0penBmc', 'root@bmc-oob:~#')
         #exec_command_and_wait_for_pattern(self, 'ifconfig', 'HWaddr DE:AD:BE:EF:CA:FE')
+
+    def test_grandcanyon_bmc(self):
+        """
+        :avocado: tags=arch:arm
+        :avocado: tags=machine:grandcanyon-bmc
+        """
+        image_url = 'https://github.com/facebook/openbmc/releases/download/v2021.49.0/grandcanyon.mtd'
+        image_hash = '49915f1c7aa9bcf66e237d77d33338bd84f808e2b7da48ae71ebf33c7f759213'
+        image_path = self.fetch_asset(image_url, asset_hash=image_hash, algorithm='sha256')
+        self.vm.set_console()
+        self.vm.add_args('-drive', f'file={image_path},format=raw,if=mtd',
+                         '-drive', f'file={image_path},format=raw,if=mtd')
+        self.vm.launch()
+        wait_for_console_pattern(self, 'vboot_verify_uboot 380', vm=self.vm)
 
     def do_test_bic(self, kernel_url, kernel_hash):
         kernel_path = self.fetch_asset(kernel_url, asset_hash=kernel_hash, algorithm='sha256')
