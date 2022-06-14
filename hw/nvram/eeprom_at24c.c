@@ -16,6 +16,7 @@
 #include "hw/qdev-properties-system.h"
 #include "sysemu/block-backend.h"
 #include "qom/object.h"
+#include "hw/nvram/eeprom_at24c.h"
 
 /* #define DEBUG_AT24C */
 
@@ -49,6 +50,7 @@ struct EEPROMState {
     uint8_t *mem;
 
     BlockBackend *blk;
+    const uint8_t *rom;
 };
 
 static
@@ -171,6 +173,23 @@ void at24c_eeprom_reset(DeviceState *state)
         }
         DPRINTK("Reset read backing file\n");
     }
+
+    if (ee->rom) {
+        memcpy(ee->mem, ee->rom, ee->rsize);
+    }
+}
+
+void at24c_eeprom_init(I2CBus *bus, uint8_t address, const uint8_t *rom, uint32_t rom_size, bool writable)
+{
+    EEPROMState *s;
+
+    s = AT24C_EE(qdev_new(TYPE_AT24C_EE));
+    s->rom = rom;
+    qdev_prop_set_uint8(DEVICE(s), "address", address);
+    qdev_prop_set_uint32(DEVICE(s), "rom-size", rom_size);
+    qdev_prop_set_bit(DEVICE(s), "writable", writable);
+
+    i2c_slave_realize_and_unref(I2C_SLAVE(s), bus, &error_fatal);
 }
 
 static Property at24c_eeprom_props[] = {
