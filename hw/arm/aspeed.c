@@ -28,6 +28,7 @@
 #include "hw/qdev-clock.h"
 #include "hw/ssi/spi_gpio.h"
 #include "hw/nvram/eeprom_at24c.h"
+#include "fby35.h"
 
 static struct arm_boot_info aspeed_board_binfo = {
     .board_id = -1, /* device-tree-only board */
@@ -1010,9 +1011,10 @@ static void fby35_i2c_init(AspeedMachineState *bmc)
 
     aspeed_eeprom_init(i2c[4], 0x51, 128 * KiB);
     aspeed_eeprom_init(i2c[6], 0x51, 128 * KiB);
-    aspeed_eeprom_init(i2c[8], 0x50, 32 * KiB);
-    aspeed_eeprom_init(i2c[11], 0x51, 128 * KiB);
-    aspeed_eeprom_init(i2c[11], 0x54, 128 * KiB);
+
+    at24c_eeprom_init(i2c[8], 0x50, fby35_fruid_nic, sizeof(fby35_fruid_nic), false);
+    at24c_eeprom_init(i2c[11], 0x51, fby35_fruid_bb, sizeof(fby35_fruid_bb), false);
+    at24c_eeprom_init(i2c[11], 0x54, fby35_fruid_bmc, sizeof(fby35_fruid_bmc), false);
 
     /*
      * TODO: There is a multi-master i2c connection to an AST1030 MiniBMC on
