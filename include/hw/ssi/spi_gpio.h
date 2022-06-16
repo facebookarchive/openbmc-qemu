@@ -37,7 +37,14 @@ struct SpiGpioState {
     SSIBus *spi;
     AspeedGPIOState *aspeed_gpio;
 
-    int clk, mosi, cs;
+    int mode;
+    int clk_counter;
+
+    bool CIDLE, CPHA;
+    uint32_t output_byte;
+    uint32_t input_byte;
+
+    bool clk, mosi, cs, miso;
     qemu_irq miso_output_pin, cs_output_pin;
 };
 
