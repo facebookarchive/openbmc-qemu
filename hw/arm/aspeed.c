@@ -296,13 +296,26 @@ static void aspeed_board_init_flashes(AspeedSMCState *s, const char *flashtype,
     }
 
     for (i = 0; i < count; ++i) {
+        AspeedSMCFlash *flash = &s->flashes[i];
         DriveInfo *dinfo = drive_get(IF_MTD, 0, unit0 + i);
+        BlockBackend *blk;
         qemu_irq cs_line;
         DeviceState *dev;
+        uint64_t flash_size, blk_size, perm, shared_perm;
 
         dev = qdev_new(flashtype);
+        flash_size = memory_region_size(&flash->mmio);
         if (dinfo) {
-            qdev_prop_set_drive(dev, "drive", blk_by_legacy_dinfo(dinfo));
+            blk = blk_by_legacy_dinfo(dinfo);
+            blk_size = blk_getlength(blk);
+            if (blk_size < flash_size) {
+                blk_get_perm(blk, &perm, &shared_perm);
+                blk_set_perm(blk, BLK_PERM_ALL, BLK_PERM_ALL, &error_abort);
+                blk_truncate(blk, flash_size, true, PREALLOC_MODE_OFF,
+                             BDRV_REQ_ZERO_WRITE, &error_abort);
+                blk_set_perm(blk, perm, shared_perm, &error_abort);
+            }
+            qdev_prop_set_drive(dev, "drive", blk);
         }
         qdev_realize_and_unref(dev, BUS(s->spi), &error_fatal);
 
