@@ -134,6 +134,7 @@ static void spi_gpio_realize(DeviceState *dev, Error **errp)
     SpiGpioState *s = SPI_GPIO(dev);
 
     s->spi = ssi_create_bus(dev, "spi");
+    s->spi->preread = true;
 
     s->mode = 0;
     s->clk_counter = 0;

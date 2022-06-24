@@ -1550,6 +1550,25 @@ static uint32_t m25p80_transfer8(SSIPeripheral *ss, uint32_t tx)
     return r;
 }
 
+static uint32_t m25p80_transfer8_ex(SSIPeripheral *ss, uint32_t tx)
+{
+    Flash *s = M25P80(ss);
+    SSIBus *ssibus = (SSIBus *)qdev_get_parent_bus(DEVICE(s));
+
+    uint8_t prev_state = s->state;
+    uint32_t r = m25p80_transfer8(ss, tx);
+    uint8_t curr_state = s->state;
+
+    if (ssibus->preread &&
+       /* cmd state has changed into DATA reading state */
+       (!(prev_state == STATE_READ || prev_state == STATE_READING_DATA) &&
+       (curr_state == STATE_READ || curr_state == STATE_READING_DATA))) {
+        r = m25p80_transfer8(ss, 0xFF);
+    }
+
+    return r;
+}
+
 static void m25p80_write_protect_pin_irq_handler(void *opaque, int n, int level)
 {
     Flash *s = M25P80(opaque);
@@ -1727,7 +1746,7 @@ static void m25p80_class_init(ObjectClass *klass, void *data)
     M25P80Class *mc = M25P80_CLASS(klass);
 
     k->realize = m25p80_realize;
-    k->transfer = m25p80_transfer8;
+    k->transfer = m25p80_transfer8_ex;
     k->set_cs = m25p80_cs;
     k->cs_polarity = SSI_CS_LOW;
     dc->vmsd = &vmstate_m25p80;
