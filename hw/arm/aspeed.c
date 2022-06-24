@@ -397,7 +397,7 @@ static void aspeed_machine_init(MachineState *machine)
 
     SpiGpioState *spi_gpio = SPI_GPIO(qdev_new(TYPE_SPI_GPIO));
     spi_gpio->aspeed_gpio = &bmc->soc.gpio;
-    qdev_realize(DEVICE(spi_gpio), NULL, &error_fatal);
+    sysbus_realize(SYS_BUS_DEVICE(spi_gpio), &error_fatal);
 
     DeviceState *m25p80 = qdev_new("n25q256a");
     qdev_realize(m25p80, BUS(spi_gpio->spi), &error_fatal);

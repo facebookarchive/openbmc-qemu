@@ -166,7 +166,7 @@ static void SPI_GPIO_class_init(ObjectClass *klass, void *data)
 
 static const TypeInfo SPI_GPIO_info = {
     .name           = TYPE_SPI_GPIO,
-    .parent         = TYPE_DEVICE,
+    .parent         = TYPE_SYS_BUS_DEVICE,
     .instance_size  = sizeof(SpiGpioState),
     .class_init     = SPI_GPIO_class_init,
 };

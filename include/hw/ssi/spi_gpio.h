@@ -33,7 +33,7 @@
 OBJECT_DECLARE_SIMPLE_TYPE(SpiGpioState, SPI_GPIO);
 
 struct SpiGpioState {
-    DeviceState parent;
+    SysBusDevice parent;
     SSIBus *spi;
     AspeedGPIOState *aspeed_gpio;
 
