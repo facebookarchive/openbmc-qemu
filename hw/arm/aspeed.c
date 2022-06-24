@@ -42,6 +42,7 @@ struct AspeedMachineState {
     AspeedSoCState soc;
     MemoryRegion ram_container;
     MemoryRegion max_ram;
+    MemoryRegion *boot_rom;
     bool mmio_exec;
     char *fmc_model;
     char *spi_model;
@@ -257,10 +258,14 @@ static void aspeed_reset_secondary(ARMCPU *cpu,
 
 #define FIRMWARE_ADDR 0x0
 
-static void write_boot_rom(DriveInfo *dinfo, hwaddr addr, size_t rom_size,
-                           Error **errp)
+static void write_boot_rom(void *opaque)
 {
+    AspeedMachineState *bmc = opaque;
+    DriveInfo *dinfo = drive_get(IF_MTD, 0, 0);
+    AspeedSMCFlash *fl = &bmc->soc.fmc.flashes[0];
+    uint64_t rom_size = memory_region_size(&fl->mmio);
     BlockBackend *blk = blk_by_legacy_dinfo(dinfo);
+    AddressSpace *as = arm_boot_address_space(&bmc->soc.cpu[0], &aspeed_board_binfo);
     g_autofree void *storage = NULL;
     int64_t size;
 
@@ -269,7 +274,7 @@ static void write_boot_rom(DriveInfo *dinfo, hwaddr addr, size_t rom_size,
      */
     size = blk_getlength(blk);
     if (size <= 0) {
-        error_setg(errp, "failed to get flash size");
+        error_setg(&error_abort, "failed to get flash size");
         return;
     }
 
@@ -279,11 +284,11 @@ static void write_boot_rom(DriveInfo *dinfo, hwaddr addr, size_t rom_size,
 
     storage = g_malloc0(rom_size);
     if (blk_pread(blk, 0, storage, rom_size) < 0) {
-        error_setg(errp, "failed to read the initial flash content");
+        error_setg(&error_abort, "failed to read the initial flash content");
         return;
     }
 
-    rom_add_blob_fixed("aspeed.boot_rom", storage, rom_size, addr);
+    address_space_write_rom(as, 0, MEMTXATTRS_UNSPECIFIED, storage, rom_size);
 }
 
 static void aspeed_board_init_flashes(AspeedSMCState *s, const char *flashtype,
@@ -428,7 +433,7 @@ static void aspeed_machine_init(MachineState *machine)
     /* Install first FMC flash content as a boot rom. */
     if (drive0) {
         AspeedSMCFlash *fl = &bmc->soc.fmc.flashes[0];
-        MemoryRegion *boot_rom = g_new(MemoryRegion, 1);
+        bmc->boot_rom = g_new(MemoryRegion, 1);
         uint64_t size = memory_region_size(&fl->mmio);
 
         /*
@@ -438,16 +443,16 @@ static void aspeed_machine_init(MachineState *machine)
          * needed by the flash modules of the Aspeed machines.
          */
         if (ASPEED_MACHINE(machine)->mmio_exec) {
-            memory_region_init_alias(boot_rom, NULL, "aspeed.boot_rom",
+            memory_region_init_alias(bmc->boot_rom, NULL, "aspeed.boot_rom",
                                      &fl->mmio, 0, size);
             memory_region_add_subregion(get_system_memory(), FIRMWARE_ADDR,
-                                        boot_rom);
+                                        bmc->boot_rom);
         } else {
-            memory_region_init_rom(boot_rom, NULL, "aspeed.boot_rom",
+            memory_region_init_ram(bmc->boot_rom, NULL, "aspeed.boot_rom",
                                    size, &error_abort);
             memory_region_add_subregion(get_system_memory(), FIRMWARE_ADDR,
-                                        boot_rom);
-            write_boot_rom(drive0, FIRMWARE_ADDR, size, &error_abort);
+                                        bmc->boot_rom);
+            qemu_register_reset(write_boot_rom, bmc);
         }
     }
 
