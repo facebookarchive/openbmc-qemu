@@ -30,12 +30,19 @@
 
 static void do_leading_edge(SpiGpioState *s)
 {
-    if (s->CPHA) {
-        s->miso = !!(s->output_byte & 0x80);
-        object_property_set_bool(OBJECT(s->aspeed_gpio),
-                                 "gpioX5", s->miso, NULL);
-    } else {
+    if (!s->CPHA) {
         s->input_byte |= s->mosi ? 1 : 0;
+        /*
+         * According to SPI protocol:
+         * CPHA=0 leading half clock cycle is sampling phase
+         * We technically should not drive out miso
+         * However, when the kernel bitbang driver is setting the clk pin,
+         * it will overwrite the miso value, so we are driving out miso in
+         * the sampling half clock cycle as well to workaround this issue
+         */
+        s->miso = !!(s->output_byte & 0x80);
+        object_property_set_bool(OBJECT(s->aspeed_gpio), "gpioX5", s->miso,
+                                 NULL);
     }
 }
 
@@ -43,10 +50,17 @@ static void do_trailing_edge(SpiGpioState *s)
 {
     if (s->CPHA) {
         s->output_byte |= s->mosi ? 1 : 0;
-    } else {
+        /*
+         * According to SPI protocol:
+         * CPHA=1 trailing half clock cycle is sampling phase
+         * We technically should not drive out miso
+         * However, when the kernel bitbang driver is setting the clk pin,
+         * it will overwrite the miso value, so we are driving out miso in
+         * the sampling half clock cycle as well to workaround this issue
+         */
         s->miso = !!(s->output_byte & 0x80);
-        object_property_set_bool(OBJECT(s->aspeed_gpio),
-                                 "gpioX5", s->miso, NULL);
+        object_property_set_bool(OBJECT(s->aspeed_gpio), "gpioX5", s->miso,
+                                 NULL);
     }
 }
 
