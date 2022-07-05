@@ -455,7 +455,12 @@ config ASPEED_SOC
     select EMC141X
     select UNIMP
     select LED
+
+config FBOBMC_AST
+    bool
+    select ASPEED_SOC
     select SPI_GPIO
+    select TPM_TIS_SPI
 
 config MPS2
     bool
