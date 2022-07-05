@@ -43,12 +43,12 @@
 #define SPI_NOR_MAX_ID_LEN 6
 
 /* Fields for FlashPartInfo->flags */
-enum spi_nor_option_flags {
+enum spi_option_flags {
     ER_4K                  = BIT(0),
     ER_32K                 = BIT(1),
     EEPROM                 = BIT(2),
-    SNOR_F_HAS_SR_TB       = BIT(3),
-    SNOR_F_HAS_SR_BP3_BIT6 = BIT(4),
+    HAS_SR_TB       = BIT(3),
+    HAS_SR_BP3_BIT6 = BIT(4),
 };
 
 typedef struct FlashPartInfo {
@@ -252,14 +252,14 @@ static const FlashPartInfo known_devices[] = {
     { INFO("n25q512a13",  0x20ba20,      0,  64 << 10, 1024, ER_4K) },
     { INFO("n25q128",     0x20ba18,      0,  64 << 10, 256, 0) },
     { INFO("n25q256a",    0x20ba19,      0,  64 << 10, 512,
-           ER_4K | SNOR_F_HAS_SR_BP3_BIT6 | SNOR_F_HAS_SR_TB) },
+           ER_4K | HAS_SR_BP3_BIT6 | HAS_SR_TB) },
     { INFO("n25q512a",    0x20ba20,      0,  64 << 10, 1024, ER_4K) },
     { INFO("n25q512ax3",  0x20ba20,  0x1000,  64 << 10, 1024, ER_4K) },
     { INFO("mt25ql512ab", 0x20ba20, 0x1044, 64 << 10, 1024, ER_4K | ER_32K) },
     { INFO_STACKED("mt35xu01g", 0x2c5b1b, 0x104100, 128 << 10, 1024,
                    ER_4K | ER_32K, 2) },
     { INFO_STACKED("n25q00",    0x20ba21, 0x1000, 64 << 10, 2048,
-                   ER_4K | SNOR_F_HAS_SR_BP3_BIT6 | SNOR_F_HAS_SR_TB, 4) },
+                   ER_4K | HAS_SR_BP3_BIT6 | HAS_SR_TB, 4) },
     { INFO_STACKED("n25q00a",   0x20bb21, 0x1000, 64 << 10, 2048, ER_4K, 4) },
     { INFO_STACKED("mt25ql01g", 0x20ba21, 0x1040, 64 << 10, 2048, ER_4K, 2) },
     { INFO_STACKED("mt25qu01g", 0x20bb21, 0x1040, 64 << 10, 2048, ER_4K, 2) },
@@ -631,31 +631,33 @@ void flash_write8(Flash *s, uint32_t addr, uint8_t data)
     uint32_t page = addr / s->pi->page_size;
     uint8_t prev = s->storage[s->cur_addr];
 
-    if (!s->write_enable) {
-        qemu_log_mask(LOG_GUEST_ERROR, "M25P80: write with write protect!\n");
-        return;
-    }
     uint32_t block_protect_value = (s->block_protect3 << 3) |
                                    (s->block_protect2 << 2) |
                                    (s->block_protect1 << 1) |
                                    (s->block_protect0 << 0);
 
-     uint32_t num_protected_sectors = 1 << (block_protect_value - 1);
-     uint32_t sector = addr / s->pi->sector_size;
+    if (!s->write_enable) {
+        qemu_log_mask(LOG_GUEST_ERROR, "M25P80: write with write protect!\n");
+        return;
+    }
 
-     /* top_bottom_bit == 0 means TOP */
-    if (!s->top_bottom_bit) {
-        if (block_protect_value > 0 &&
-            s->pi->n_sectors <= sector + num_protected_sectors) {
-            qemu_log_mask(LOG_GUEST_ERROR,
-                          "M25P80: write with write protect!\n");
-            return;
-        }
-    } else {
-        if (block_protect_value > 0 && sector < num_protected_sectors) {
-            qemu_log_mask(LOG_GUEST_ERROR,
-                          "M25P80: write with write protect!\n");
-            return;
+    if (block_protect_value > 0) {
+        uint32_t num_protected_sectors = 1 << (block_protect_value - 1);
+        uint32_t sector = addr / s->pi->sector_size;
+
+        /* top_bottom_bit == 0 means TOP */
+        if (!s->top_bottom_bit) {
+            if (s->pi->n_sectors <= sector + num_protected_sectors) {
+                qemu_log_mask(LOG_GUEST_ERROR,
+                              "M25P80: write with write protect!\n");
+                return;
+            }
+        } else {
+            if (sector < num_protected_sectors) {
+                qemu_log_mask(LOG_GUEST_ERROR,
+                              "M25P80: write with write protect!\n");
+                return;
+            }
         }
     }
 
@@ -759,10 +761,10 @@ static void complete_collecting_data(Flash *s)
         s->block_protect0 = extract32(s->data[0], 2, 1);
         s->block_protect1 = extract32(s->data[0], 3, 1);
         s->block_protect2 = extract32(s->data[0], 4, 1);
-        if (s->pi->flags & SNOR_F_HAS_SR_TB) {
+        if (s->pi->flags & HAS_SR_TB) {
             s->top_bottom_bit = extract32(s->data[0], 5, 1);
         }
-        if (s->pi->flags & SNOR_F_HAS_SR_BP3_BIT6) {
+        if (s->pi->flags & HAS_SR_BP3_BIT6) {
             s->block_protect3 = extract32(s->data[0], 6, 1);
         }
 
@@ -1234,7 +1236,7 @@ static void decode_new_cmd(Flash *s, uint32_t value)
         default:
             s->needed_bytes = 1;
             s->state = STATE_COLLECTING_DATA;
-         }
+        }
         s->pos = 0;
         break;
 
@@ -1254,10 +1256,10 @@ static void decode_new_cmd(Flash *s, uint32_t value)
         s->data[0] |= (!!s->block_protect0) << 2;
         s->data[0] |= (!!s->block_protect1) << 3;
         s->data[0] |= (!!s->block_protect2) << 4;
-        if (s->pi->flags & SNOR_F_HAS_SR_TB) {
+        if (s->pi->flags & HAS_SR_TB) {
             s->data[0] |= (!!s->top_bottom_bit) << 5;
         }
-        if (s->pi->flags & SNOR_F_HAS_SR_BP3_BIT6) {
+        if (s->pi->flags & HAS_SR_BP3_BIT6) {
             s->data[0] |= (!!s->block_protect3) << 6;
         }
 
@@ -1703,6 +1705,32 @@ static const VMStateDescription vmstate_m25p80_write_protect = {
     }
 };
 
+static bool m25p80_block_protect_needed(void *opaque)
+{
+    Flash *s = (Flash *)opaque;
+
+    return s->block_protect0 ||
+           s->block_protect1 ||
+           s->block_protect2 ||
+           s->block_protect3 ||
+           s->top_bottom_bit;
+}
+
+static const VMStateDescription vmstate_m25p80_block_protect = {
+    .name = "m25p80/block_protect",
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .needed = m25p80_block_protect_needed,
+    .fields = (VMStateField[]) {
+        VMSTATE_BOOL(block_protect0, Flash),
+        VMSTATE_BOOL(block_protect1, Flash),
+        VMSTATE_BOOL(block_protect2, Flash),
+        VMSTATE_BOOL(block_protect3, Flash),
+        VMSTATE_BOOL(top_bottom_bit, Flash),
+        VMSTATE_END_OF_LIST()
+    }
+};
+
 static const VMStateDescription vmstate_m25p80 = {
     .name = "m25p80",
     .version_id = 0,
@@ -1735,6 +1763,7 @@ static const VMStateDescription vmstate_m25p80 = {
         &vmstate_m25p80_data_read_loop,
         &vmstate_m25p80_aai_enable,
         &vmstate_m25p80_write_protect,
+        &vmstate_m25p80_block_protect,
         NULL
     }
 };
