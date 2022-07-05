@@ -1691,11 +1691,18 @@ static const VMStateDescription vmstate_m25p80_aai_enable = {
     }
 };
 
+static bool m25p80_wp_level_srwd_needed(void *opaque)
+{
+    Flash *s = opaque;
+
+    return !s->wp_level || s->status_register_write_disabled;
+}
+
 static const VMStateDescription vmstate_m25p80_write_protect = {
     .name = "m25p80/write_protect",
     .version_id = 1,
     .minimum_version_id = 1,
-    .needed = false,
+    .needed = m25p80_wp_level_srwd_needed,
     .fields = (VMStateField[]) {
         VMSTATE_BOOL(wp_level, Flash),
         VMSTATE_BOOL(status_register_write_disabled, Flash),
