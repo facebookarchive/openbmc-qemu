@@ -398,9 +398,7 @@ static void aspeed_machine_init(MachineState *machine)
     SpiGpioState *spi_gpio = SPI_GPIO(qdev_new(TYPE_SPI_GPIO));
     spi_gpio->aspeed_gpio = &bmc->soc.gpio;
     sysbus_realize(SYS_BUS_DEVICE(spi_gpio), &error_fatal);
-
-    DeviceState *m25p80 = qdev_new("n25q256a");
-    qdev_realize(m25p80, BUS(spi_gpio->spi), &error_fatal);
+    DEVICE(spi_gpio)->id = g_strdup(TYPE_SPI_GPIO);
 
     qdev_connect_gpio_out_named(DEVICE(&bmc->soc.gpio), "sysbus-irq", AST_GPIO_IRQ_X0_NUM,
                                 qdev_get_gpio_in_named(DEVICE(spi_gpio), "SPI_CS_in", 0));
@@ -408,9 +406,6 @@ static void aspeed_machine_init(MachineState *machine)
                                 qdev_get_gpio_in_named(DEVICE(spi_gpio), "SPI_CLK", 0));
     qdev_connect_gpio_out_named(DEVICE(&bmc->soc.gpio), "sysbus-irq", AST_GPIO_IRQ_X4_NUM,
                                 qdev_get_gpio_in_named(DEVICE(spi_gpio), "SPI_MOSI", 0));
-
-    qdev_connect_gpio_out_named(DEVICE(spi_gpio), "SPI_CS_out", 0,
-                                qdev_get_gpio_in_named(m25p80, SSI_GPIO_CS, 0));
     object_property_set_bool(OBJECT(spi_gpio->aspeed_gpio), "gpioX5", true, &error_fatal);
 
     memory_region_add_subregion(get_system_memory(),

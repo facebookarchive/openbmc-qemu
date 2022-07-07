@@ -6,6 +6,7 @@
 #include "tpm_tis.h"
 #include "qom/object.h"
 #include "hw/ssi/ssi.h"
+#include "hw/ssi/spi_gpio.h"
 
 #define TPM_TIS_SPI_ADDR_BYTES 3
 #define SPI_WRITE 0
@@ -55,7 +56,11 @@ struct TpmTisSpiState {
     uint8_t addr_idx;
 };
 
-OBJECT_DECLARE_SIMPLE_TYPE(TpmTisSpiState, TPM_TIS_SPI)
+struct TpmTisSpiClass {
+    SSIPeripheralClass parent_class;
+};
+
+OBJECT_DECLARE_TYPE(TpmTisSpiState, TpmTisSpiClass, TPM_TIS_SPI)
 
 static void tpm_tis_spi_mmio_read(TpmTisSpiState *tts)
 {
@@ -129,7 +134,7 @@ static uint32_t tpm_tis_spi_transfer8(SSIPeripheral *ss, uint32_t tx)
         tts->data.bytes[tts->data_idx++] = (uint8_t)tx;
         if (tts->data_idx == tts->data_size) {
             tpm_tis_spi_mmio_write(tts);
-            tts->tpm_tis_spi_state = TIS_SPI_PKT_STATE_START;
+            tts->tpm_tis_spi_state = TIS_SPI_PKT_STATE_DONE;
         }
         break;
     case TIS_SPI_PKT_STATE_DATA_RD:
@@ -139,7 +144,7 @@ static uint32_t tpm_tis_spi_transfer8(SSIPeripheral *ss, uint32_t tx)
         }
         break;
     default:
-        tts->tpm_tis_spi_state = TIS_SPI_PKT_STATE_START;
+        tts->tpm_tis_spi_state = TIS_SPI_PKT_STATE_DEACTIVATED;
         r = (uint32_t) -1;
     }
 
@@ -243,10 +248,9 @@ static Property tpm_tis_spi_properties[] = {
     DEFINE_PROP_END_OF_LIST(),
 };
 
-static void tpm_tis_spi_realizefn(DeviceState *dev, Error **errp)
+static void tpm_tis_spi_realizefn(SSIPeripheral *ss, Error **errp)
 {
-    TpmTisSpiState *sbdev = TPM_TIS_SPI(dev);
-    sbdev->tpm_tis_spi_state = TIS_SPI_PKT_STATE_START;
+    TpmTisSpiState *sbdev = TPM_TIS_SPI(ss);
 
     if (!tpm_find()) {
         error_setg(errp, "at most one TPM device is permitted");
@@ -257,6 +261,13 @@ static void tpm_tis_spi_realizefn(DeviceState *dev, Error **errp)
         error_setg(errp, "'tpmdev' property is required");
         return;
     }
+
+    DeviceState *spi_gpio = qdev_find_recursive(sysbus_get_default(),
+                                                TYPE_SPI_GPIO);
+    qdev_connect_gpio_out_named(spi_gpio,
+                                "SPI_CS_out", 0,
+                                qdev_get_gpio_in_named(DEVICE(ss),
+                                SSI_GPIO_CS, 0));
 }
 
 static void tpm_tis_spi_class_init(ObjectClass *klass, void *data)
@@ -266,12 +277,13 @@ static void tpm_tis_spi_class_init(ObjectClass *klass, void *data)
     TPMIfClass *tc = TPM_IF_CLASS(klass);
 
     device_class_set_props(dc, tpm_tis_spi_properties);
+    k->realize = tpm_tis_spi_realizefn;
     k->transfer = tpm_tis_spi_transfer8_ex;
     k->set_cs = tpm_tis_spi_cs;
+    k->cs_polarity = SSI_CS_LOW;
 
     dc->vmsd  = &vmstate_tpm_tis_spi;
     tc->model = TPM_MODEL_TPM_TIS;
-    dc->realize = tpm_tis_spi_realizefn;
     dc->user_creatable = true;
     dc->reset = tpm_tis_spi_reset;
     tc->request_completed = tpm_tis_spi_request_completed;
@@ -283,6 +295,7 @@ static const TypeInfo tpm_tis_spi_info = {
     .name = TYPE_TPM_TIS_SPI,
     .parent = TYPE_SSI_PERIPHERAL,
     .instance_size = sizeof(TpmTisSpiState),
+    .class_size = sizeof(TpmTisSpiClass),
     .class_init  = tpm_tis_spi_class_init,
     .interfaces = (InterfaceInfo[]) {
         { TYPE_TPM_IF },
