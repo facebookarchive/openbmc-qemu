@@ -29,6 +29,7 @@
 #include "hw/ssi/spi_gpio.h"
 #include "hw/nvram/eeprom_at24c.h"
 #include "fby35.h"
+#include "sysemu/tpm.h"
 
 static struct arm_boot_info aspeed_board_binfo = {
     .board_id = -1, /* device-tree-only board */
@@ -291,6 +292,8 @@ static void write_boot_rom(void *opaque)
     address_space_write_rom(as, 0, MEMTXATTRS_UNSPECIFIED, storage, rom_size);
 }
 
+SpiGpioState *spi_gpio;
+
 static void aspeed_board_init_flashes(AspeedSMCState *s, const char *flashtype,
                                       unsigned int count, int unit0)
 {
@@ -395,12 +398,9 @@ static void aspeed_machine_init(MachineState *machine)
                          amc->uart_default);
     qdev_realize(DEVICE(&bmc->soc), NULL, &error_abort);
 
-    SpiGpioState *spi_gpio = SPI_GPIO(qdev_new(TYPE_SPI_GPIO));
+    spi_gpio = SPI_GPIO(qdev_new(TYPE_SPI_GPIO));
     spi_gpio->aspeed_gpio = &bmc->soc.gpio;
     sysbus_realize(SYS_BUS_DEVICE(spi_gpio), &error_fatal);
-
-    DeviceState *m25p80 = qdev_new("n25q256a");
-    qdev_realize(m25p80, BUS(spi_gpio->spi), &error_fatal);
 
     qdev_connect_gpio_out_named(DEVICE(&bmc->soc.gpio), "sysbus-irq", AST_GPIO_IRQ_X0_NUM,
                                 qdev_get_gpio_in_named(DEVICE(spi_gpio), "SPI_CS_in", 0));
@@ -408,9 +408,6 @@ static void aspeed_machine_init(MachineState *machine)
                                 qdev_get_gpio_in_named(DEVICE(spi_gpio), "SPI_CLK", 0));
     qdev_connect_gpio_out_named(DEVICE(&bmc->soc.gpio), "sysbus-irq", AST_GPIO_IRQ_X4_NUM,
                                 qdev_get_gpio_in_named(DEVICE(spi_gpio), "SPI_MOSI", 0));
-
-    qdev_connect_gpio_out_named(DEVICE(spi_gpio), "SPI_CS_out", 0,
-                                qdev_get_gpio_in_named(m25p80, SSI_GPIO_CS, 0));
     object_property_set_bool(OBJECT(spi_gpio->aspeed_gpio), "gpioX5", true, &error_fatal);
 
     memory_region_add_subregion(get_system_memory(),

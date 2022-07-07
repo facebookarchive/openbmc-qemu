@@ -48,4 +48,6 @@ struct SpiGpioState {
     qemu_irq miso_output_pin, cs_output_pin;
 };
 
+extern SpiGpioState *spi_gpio;
+
 #endif /* SPI_GPIO_H */
