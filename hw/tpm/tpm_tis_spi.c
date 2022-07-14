@@ -35,7 +35,7 @@ union TpmTisSpiHwAddr {
 
 union TpmTisSpiData {
     uint32_t data;
-    uint8_t bytes[sizeof(uint32_t)];
+    uint8_t bytes[64];
 };
 
 struct TpmTisSpiState {
@@ -56,6 +56,48 @@ struct TpmTisSpiState {
 };
 
 OBJECT_DECLARE_SIMPLE_TYPE(TpmTisSpiState, TPM_TIS_SPI)
+
+static void tpm_tis_spi_mmio_read(TpmTisSpiState *tts)
+{
+    uint16_t offset = tts->addr.addr & 0xffc;
+
+    switch (offset) {
+    case TPM_TIS_REG_DATA_FIFO:
+        for (uint8_t i = 0; i < tts->data_size; i++) {
+            tts->data.bytes[i] = (uint8_t)tpm_tis_memory_ops.read(
+                                          &tts->tpm_state,
+                                          tts->addr.addr,
+                                          1);
+        }
+        break;
+    default:
+        tts->data.data = (uint32_t)tpm_tis_memory_ops.read(
+                                   &tts->tpm_state,
+                                   tts->addr.addr,
+                                   tts->data_size);
+    }
+}
+
+static void tpm_tis_spi_mmio_write(TpmTisSpiState *tts)
+{
+    uint16_t offset = tts->addr.addr & 0xffc;
+
+    switch (offset) {
+    case TPM_TIS_REG_DATA_FIFO:
+        for (uint8_t i = 0; i < tts->data_size; i++) {
+            tpm_tis_memory_ops.write(&tts->tpm_state,
+                                     tts->addr.addr,
+                                     tts->data.bytes[i],
+                                     1);
+        }
+        break;
+    default:
+        tpm_tis_memory_ops.write(&tts->tpm_state,
+                                 tts->addr.addr,
+                                 tts->data.data,
+                                 tts->data_size);
+        }
+}
 
 static uint32_t tpm_tis_spi_transfer8(SSIPeripheral *ss, uint32_t tx)
 {
@@ -78,10 +120,7 @@ static uint32_t tpm_tis_spi_transfer8(SSIPeripheral *ss, uint32_t tx)
             if (tts->first_byte.rwflag == SPI_WRITE) {
                 tts->tpm_tis_spi_state = TIS_SPI_PKT_STATE_DATA_WR;
             } else { /* read and get the data ready */
-                tts->data.data = (uint32_t)tpm_tis_memory_ops.read(
-                                           &tts->tpm_state,
-                                           tts->addr.addr,
-                                           tts->data_size);
+                tpm_tis_spi_mmio_read(tts);
                 tts->tpm_tis_spi_state = TIS_SPI_PKT_STATE_DATA_RD;
             }
         }
@@ -89,11 +128,8 @@ static uint32_t tpm_tis_spi_transfer8(SSIPeripheral *ss, uint32_t tx)
     case TIS_SPI_PKT_STATE_DATA_WR:
         tts->data.bytes[tts->data_idx++] = (uint8_t)tx;
         if (tts->data_idx == tts->data_size) {
-             tpm_tis_memory_ops.write(&tts->tpm_state,
-                                      tts->addr.addr,
-                                      tts->data.data,
-                                      tts->data_size);
-             tts->tpm_tis_spi_state = TIS_SPI_PKT_STATE_START;
+            tpm_tis_spi_mmio_write(tts);
+            tts->tpm_tis_spi_state = TIS_SPI_PKT_STATE_START;
         }
         break;
     case TIS_SPI_PKT_STATE_DATA_RD:
