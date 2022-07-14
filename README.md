@@ -32,6 +32,20 @@ wget https://github.com/facebook/openbmc/releases/download/openbmc-e2294ff5d31d/
 
 Username `root`, password `0penBmc`.
 
+## Boot a Facebook OpenBMC kernel directly (Much faster!)
+
+Note: If you don't get any console output, experiment with different console
+values in the `-append` argument. Some of the `.dts`'s are wrong and rely on a
+different value from U-Boot.
+
+```bash
+# Get the kernel FIT image from the build directory, usually fit-<machine>.itb
+dumpimage -i fit-fby35.itb -T flat_dt -p 0 kernel
+dumpimage -i fit-fby35.itb -T flat_dt -p 1 ramdisk
+dumpimage -i fit-fby35.itb -T flat_dt -p 2 dtb
+./build/qemu-system-arm -machine fby35-bmc -kernel kernel -ramdisk ramdisk -dtb dtb -append "console=ttyS0 root=/dev/ram rw" -nographic
+```
+
 ## Get a Facebook OpenBIC image
 
 Build an image from https://github.com/facebook/openbic, or get one from [my fork](https://github.com/peterdelevoryas/OpenBIC/releases).
