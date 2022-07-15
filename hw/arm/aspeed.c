@@ -1827,6 +1827,17 @@ static const struct FBMachineData fb_machines[] = {
         .ram_size    = 1 * GiB,
     },
     {
+        .name        = "grandteton-bmc",
+        .desc        = "Facebook GrandTeton BMC (Cortex-A7)",
+        .soc_name    = "ast2600-a3",
+        .hw_strap1   = AST2600_EVB_HW_STRAP1,
+        .hw_strap2   = AST2600_EVB_HW_STRAP2,
+        .flash_model = "n25q00",
+        .macs_mask   = ASPEED_MAC3_ON,
+        .stdout_path = ASPEED_DEV_UART5,
+        .ram_size    = FUJI_BMC_RAM_SIZE,
+    },
+    {
         .parent      = MACHINE_TYPE_NAME("ast1030-evb"),
         .name        = "oby35-cl",
         .desc        = "Facebook fby35 CraterLake BIC (Cortex-M4)",
