@@ -26,4 +26,4 @@ jobs:
       - name: Check
         run: make -j $(nproc) check
       - name: Acceptance tests
-        run: make -j $(nproc) check-avocado
+        run: GITLAB_CI=1 make -j $(nproc) check-avocado
