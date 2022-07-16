@@ -217,7 +217,7 @@ static void tpm_tis_spi_realizefn(DeviceState *dev, Error **errp)
         return;
     }
 
-    if (!&sbdev->tpm_state.be_driver) {
+    if (!sbdev->tpm_state.be_driver) {
         error_setg(errp, "'tpmdev' property is required");
         return;
     }
