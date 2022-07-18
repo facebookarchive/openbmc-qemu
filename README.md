@@ -60,6 +60,32 @@ wget https://github.com/peterdelevoryas/OpenBIC/releases/download/oby35-cl-2022.
 ./build/qemu-system-arm -machine oby35-cl -kernel Y35BCL.elf -nographic
 ```
 
+## Boot a Nuvoton NPCM845R OpenBMC image
+
+```bash
+wget https://github.com/peterdelevoryas/openbmc/releases/download/nv1/npcm845.mtd
+
+./configure --target-list=aarch64-softmmu && make
+./build/qemu-system-aarch64 -machine npcm845-evb -nographic -drive file=npcm845.mtd,if=mtd,format=raw,snapshot=on
+```
+
+## Using a custom Nuvoton NPCM845R TIP firmware
+
+```bash
+git clone https://github.com/peterdelevoryas/vbootrom
+cd vbootrom/npcm8xx
+
+# on macOS
+brew install aarch64-elf-binutils aarch64-elf-gcc
+make CROSS_COMPILE=aarch64-elf-
+
+# on Fedora
+sudo dnf install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+make
+
+qemu-system-aarch64 -bios npcm8xx_bootrom.bin ...
+```
+
 ## Port-forwarding ssh to port 2222
 
 ```bash
