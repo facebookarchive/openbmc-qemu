@@ -147,6 +147,58 @@ static void aarch64_a53_initfn(Object *obj)
     define_cortex_a72_a57_a53_cp_reginfo(cpu);
 }
 
+static void aarch64_a35_initfn(Object *obj)
+{
+    ARMCPU *cpu = ARM_CPU(obj);
+
+    g_assert(!kvm_enabled() && "Cortex-A35 KVM unimplemented");
+
+    aarch64_a53_initfn(obj);
+    cpu->dtb_compatible = "arm,cortex-a35";
+    cpu->psci_conduit = QEMU_PSCI_CONDUIT_SMC;
+    // set_feature(&cpu->env, ARM_FEATURE_V8);
+    // set_feature(&cpu->env, ARM_FEATURE_AARCH64);
+    // set_feature(&cpu->env, ARM_FEATURE_EL2);
+    // set_feature(&cpu->env, ARM_FEATURE_EL3);
+    // set_feature(&cpu->env, ARM_FEATURE_PMU);
+    // set_feature(&cpu->env, ARM_FEATURE_CBAR_RO);
+    // set_feature(&cpu->env, ARM_FEATURE_GENERIC_TIMER);
+    // set_feature(&cpu->env, ARM_FEATURE_NEON);
+    // cpu->kvm_target = QEMU_KVM_ARM_TARGET_NONE;
+    // cpu->midr = 0x410FD042;
+    // cpu->ctr = 0x84448004;
+    // cpu->revidr = 0x00000000;
+    // cpu->isar.id_pfr0 = 0x00000131;
+    // cpu->isar.id_pfr1 = 0x10011011;
+    // cpu->isar.id_dfr0 = 0x03010066;
+    // cpu->id_afr0 = 0x00000000;
+    // cpu->isar.id_mmfr0 = 0x10201105;
+    // cpu->isar.id_mmfr1 = 0x40000000;
+    // cpu->isar.id_mmfr2 = 0x01260000;
+    // cpu->isar.id_mmfr3 = 0x02102211;
+    // cpu->isar.id_isar0 = 0x02101110;
+    // cpu->isar.id_isar1 = 0x13112111;
+    // cpu->isar.id_isar2 = 0x21232042;
+    // cpu->isar.id_isar3 = 0x01112131;
+    // cpu->isar.id_isar4 = 0x00011142;
+    // cpu->isar.id_isar5 = 0x00011121;
+    // cpu->ccsidr[0] = 0x700FE01A; /* 32KB L1 dcache */
+    // cpu->ccsidr[1] = 0x201FE00A; /* 32KB L1 icache */
+    // cpu->ccsidr[2] = 0x707FE03A; /* 512KB L2 cache */
+    // cpu->clidr = 0x0A200023;
+    // cpu->reset_sctlr = 0x00C50838;
+    // cpu->reset_auxcr = 0x00000000;
+    // cpu->isar.id_aa64isar0 = 0x00011120;
+    // cpu->isar.id_aa64isar1 = 0x00000000;
+    // cpu->isar.id_aa64pfr0 = 0x01002222;
+    // cpu->isar.id_aa64pfr1 = 0x00000000;
+    // cpu->isar.id_aa64mmfr0 = 0x00101122;
+    // cpu->isar.id_aa64mmfr1 = 0x00000000;
+    // cpu->isar.id_aa64dfr0 = 0x10305106;
+    // cpu->isar.id_aa64dfr1 = 0x00000000;
+    // define_cortex_a72_a57_a53_cp_reginfo(cpu);
+}
+
 static void aarch64_a72_initfn(Object *obj)
 {
     ARMCPU *cpu = ARM_CPU(obj);
@@ -1038,6 +1090,7 @@ static void aarch64_a64fx_initfn(Object *obj)
 }
 
 static const ARMCPUInfo aarch64_cpus[] = {
+    { .name = "cortex-a35",         .initfn = aarch64_a35_initfn },
     { .name = "cortex-a57",         .initfn = aarch64_a57_initfn },
     { .name = "cortex-a53",         .initfn = aarch64_a53_initfn },
     { .name = "cortex-a72",         .initfn = aarch64_a72_initfn },
