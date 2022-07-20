@@ -29,7 +29,7 @@
 
 #define NPCM845_EVB_POWER_ON_STRAPS 0x000017ff
 
-static const char npcm8xx_default_bootrom[] = "npcm8xx_bootrom.bin";
+static const char npcm8xx_default_bootrom[] = "pc-bios/npcm8xx_bootrom.bin";
 
 static void npcm8xx_load_bootrom(MachineState *machine, NPCM8xxState *soc)
 {
