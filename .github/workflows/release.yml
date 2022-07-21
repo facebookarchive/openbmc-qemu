@@ -37,14 +37,19 @@ jobs:
         run: |
           git config --global --add safe.directory /__w/qemu/qemu
           git config --global --add safe.directory /__w/openbmc-qemu/openbmc-qemu
-          ./configure --target-list=arm-softmmu --disable-vnc --disable-curses --disable-sdl
+          ./configure --target-list=arm-softmmu,aarch64-softmmu
       - name: Make
         run: make -j $(nproc)
-      - name: Upload QEMU executable
+      - name: Save qemu-system-arm build artifact
         uses: actions/upload-artifact@v3
         with:
           name: qemu-system-arm.${{ matrix.os }}
           path: build/qemu-system-arm
+      - name: Save qemu-system-aarch64 build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: qemu-system-arm.${{ matrix.os }}
+          path: build/qemu-system-aarch64
   upload_qemu_executable:
     name: Upload QEMU binary to release assets
     strategy:
@@ -58,7 +63,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: qemu-system-arm.${{ matrix.os }}
-      - name: Upload QEMU Executable
+      - name: Add qemu-system-arm release artifact
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -66,4 +71,13 @@ jobs:
           upload_url: ${{ needs.create_release.outputs.upload_url }}
           asset_path: ${{ steps.download.outputs.download-path }}/qemu-system-arm
           asset_name: qemu-system-arm.${{ matrix.os }}
+          asset_content_type: application/octet-stream
+      - name: Add qemu-system-aarch64 release artifact
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
+          asset_path: ${{ steps.download.outputs.download-path }}/qemu-system-aarch64
+          asset_name: qemu-system-aarch64.${{ matrix.os }}
           asset_content_type: application/octet-stream

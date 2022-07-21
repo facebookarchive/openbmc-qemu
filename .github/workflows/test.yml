@@ -20,7 +20,7 @@ jobs:
         run: |
           git config --global --add safe.directory /__w/qemu/qemu
           git config --global --add safe.directory /__w/openbmc-qemu/openbmc-qemu
-          ./configure --target-list=arm-softmmu
+          ./configure --target-list=arm-softmmu,aarch64-softmmu
       - name: Make
         run: make -j $(nproc)
       - name: Check
