@@ -187,6 +187,7 @@ static const uint32_t npcm8xx_cold_reset_values[NPCM8XX_GCR_NR_REGS] = {
     [NPCM8XX_GCR_RESSR]         = 0x80000000,
     [NPCM8XX_GCR_DAVCLVLR]      = 0x5a00f3cf,
     [NPCM8XX_GCR_INTCR3]        = 0x5e001002,
+    [NPCM8XX_GCR_INTCR4]        = 0x00000000,
     [NPCM8XX_GCR_VSRCR]         = 0x00004800,
     [NPCM8XX_GCR_SCRPAD]        = 0x00000008,
     [NPCM8XX_GCR_USB1PHYCTL]    = 0x034730e4,
@@ -347,6 +348,7 @@ static void npcm8xx_gcr_enter_reset(Object *obj, ResetType type)
         s->regs[NPCM8XX_GCR_PWRON] = s->reset_pwron;
         s->regs[NPCM8XX_GCR_MDLR] = s->reset_mdlr;
         s->regs[NPCM8XX_GCR_INTCR3] = s->reset_intcr3;
+        s->regs[NPCM8XX_GCR_INTCR4] = s->reset_intcr4;
         s->regs[NPCM8XX_GCR_SCRPAD_B] = s->reset_scrpad_b;
         break;
     }
@@ -380,6 +382,7 @@ static void npcm_gcr_realize(DeviceState *dev, Error **errp)
 
     /* Power-on reset value */
     s->reset_intcr3 = 0x00001002;
+    s->reset_intcr4 = 0x00000000;
 
     /*
      * The GMMAP (Graphics Memory Map) field is used by u-boot to detect the
@@ -395,6 +398,14 @@ static void npcm_gcr_realize(DeviceState *dev, Error **errp)
      * https://github.com/Nuvoton-Israel/u-boot/blob/2aef993bd2aafeb5408dbaad0f3ce099ee40c4aa/board/nuvoton/poleg/poleg.c#L244
      */
     s->reset_intcr3 |= ctz64(dram_size / NPCM7XX_GCR_MIN_DRAM_SIZE) << 8;
+
+    /*
+     * On the NPCM845, GMMAP0 is in INTCR4, and the bits from INTCR3 are now
+     * unused (reserved).
+     *
+     * https://github.com/Nuvoton-Israel/linux/blob/9995889faf96a21217ca7b0b330443fa7a6b5a09/drivers/media/platform/nuvoton/npcm-video.c#L1153-L1177
+     */
+    s->reset_intcr4 |= 0x7F << 16;
 
     /*
      * The boot block starting from 0.0.6 for NPCM8xx SoCs stores the DRAM size
