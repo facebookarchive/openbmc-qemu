@@ -58,9 +58,20 @@ static void npcm8xx_connect_flash(NPCM7xxFIUState *fiu, int cs_no,
 {
     DeviceState *flash;
     qemu_irq flash_cs;
+    BlockBackend *blk;
+    uint64_t blk_size, perm, shared_perm;
 
     flash = qdev_new(flash_type);
     if (dinfo) {
+        blk = blk_by_legacy_dinfo(dinfo);
+        blk_size = blk_getlength(blk);
+        if (blk_size < fiu->flash_size) {
+            blk_get_perm(blk, &perm, &shared_perm);
+            blk_set_perm(blk, BLK_PERM_ALL, BLK_PERM_ALL, &error_abort);
+            blk_truncate(blk, fiu->flash_size, true, PREALLOC_MODE_OFF,
+                         BDRV_REQ_ZERO_WRITE, &error_abort);
+            blk_set_perm(blk, perm, shared_perm, &error_abort);
+        }
         qdev_prop_set_drive(flash, "drive", blk_by_legacy_dinfo(dinfo));
     }
     qdev_realize_and_unref(flash, BUS(fiu->spi), &error_fatal);
