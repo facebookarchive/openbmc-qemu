@@ -44,7 +44,7 @@ struct SpiGpioState {
     uint32_t output_byte;
     uint32_t input_byte;
 
-    bool clk, mosi, cs, miso;
+    bool clk, cs, miso;
     qemu_irq miso_output_pin, cs_output_pin;
 };
 

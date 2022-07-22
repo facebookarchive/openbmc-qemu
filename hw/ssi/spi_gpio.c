@@ -31,7 +31,8 @@
 static void do_leading_edge(SpiGpioState *s)
 {
     if (!s->CPHA) {
-        s->input_byte |= s->mosi ? 1 : 0;
+        s->input_byte |= object_property_get_bool(OBJECT(s->aspeed_gpio),
+                                                  "gpioX4", NULL);
         /*
          * According to SPI protocol:
          * CPHA=0 leading half clock cycle is sampling phase
@@ -49,7 +50,8 @@ static void do_leading_edge(SpiGpioState *s)
 static void do_trailing_edge(SpiGpioState *s)
 {
     if (s->CPHA) {
-        s->output_byte |= s->mosi ? 1 : 0;
+        s->input_byte |= object_property_get_bool(OBJECT(s->aspeed_gpio),
+                                                  "gpioX4", NULL);
         /*
          * According to SPI protocol:
          * CPHA=1 trailing half clock cycle is sampling phase
@@ -123,12 +125,6 @@ static void clk_set_level(void *opaque, int n, int level)
     }
 }
 
-static void mosi_set_level(void *opaque, int n, int level)
-{
-    SpiGpioState *s = SPI_GPIO(opaque);
-    s->mosi = !!level;
-}
-
 static void spi_gpio_realize(DeviceState *dev, Error **errp)
 {
     SpiGpioState *s = SPI_GPIO(dev);
@@ -141,7 +137,6 @@ static void spi_gpio_realize(DeviceState *dev, Error **errp)
 
     s->cs = true;
     s->clk = true;
-    s->mosi = true;
 
     /* Assuming the first output byte is 0 */
     s->output_byte = 0;
@@ -151,7 +146,6 @@ static void spi_gpio_realize(DeviceState *dev, Error **errp)
     /* init the input GPIO lines */
     qdev_init_gpio_in_named(dev, cs_set_level, "SPI_CS_in", 1);
     qdev_init_gpio_in_named(dev, clk_set_level, "SPI_CLK", 1);
-    qdev_init_gpio_in_named(dev, mosi_set_level, "SPI_MOSI", 1);
 
     /* init the output GPIO lines */
     qdev_init_gpio_out_named(dev, &s->miso_output_pin, "SPI_MISO", 1);
