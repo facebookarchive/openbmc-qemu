@@ -89,7 +89,7 @@ class BootLinuxConsole(LinuxKernelTest):
     Boots a Linux kernel and checks that the console is operational and the
     kernel command line is properly passed from QEMU to the kernel
     """
-    timeout = 90
+    timeout = 500
 
     def test_x86_64_pc(self):
         """
@@ -703,6 +703,27 @@ class BootLinuxConsole(LinuxKernelTest):
         self.wait_for_console_pattern('CPU1: thread -1, cpu 1, socket 0')
         self.wait_for_console_pattern(
                 'Give root password for system maintenance')
+
+    def test_aarch64_npcm845_evb(self):
+        """
+        :avocado: tags=arch:aarch64
+        :avocado: tags=machine:npcm845-evb
+        :avocado: tags=accel:tcg
+        """
+        image_url = 'https://github.com/peterdelevoryas/openbmc/releases/download/nv1/npcm845.mtd'
+        image_hash = '845f94a29e5a09fa9e600ea4674f7a0f'
+        image_path = self.fetch_asset(image_url, asset_hash=image_hash, algorithm='md5')
+        bios_url = 'https://github.com/peterdelevoryas/vbootrom/releases/download/v1/npcm8xx_bootrom.bin'
+        bios_hash = 'b3d18d7243be3e9d2c95bea163974978'
+        bios_path = self.fetch_asset(bios_url, asset_hash=bios_hash, algorithm='md5')
+        self.vm.set_console()
+        self.vm.add_args('-mtdblock', image_path)
+        self.vm.add_args('-bios', bios_path)
+        self.vm.launch()
+        self.wait_for_console_pattern('U-Boot')
+        self.wait_for_console_pattern('Booting Kernel from flash')
+        self.wait_for_console_pattern('Starting kernel')
+        self.wait_for_console_pattern('evb-npcm845 login:')
 
     def test_arm_orangepi(self):
         """
