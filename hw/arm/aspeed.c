@@ -178,10 +178,6 @@ struct AspeedMachineState {
 #define BLETCHLEY_BMC_HW_STRAP1 AST2600_EVB_HW_STRAP1
 #define BLETCHLEY_BMC_HW_STRAP2 AST2600_EVB_HW_STRAP2
 
-/* ASPEED GPIO propname values */
-#define AST_GPIO_IRQ_X0_NUM 185
-#define AST_GPIO_IRQ_X3_NUM 188
-
 /*
  * The max ram region is for firmwares that scan the address space
  * with load/store to guess how much RAM the SoC has.
@@ -399,9 +395,9 @@ static void aspeed_machine_init(MachineState *machine)
     sysbus_realize(SYS_BUS_DEVICE(spi_gpio), &error_fatal);
     DEVICE(spi_gpio)->id = g_strdup(TYPE_SPI_GPIO);
 
-    qdev_connect_gpio_out_named(DEVICE(&bmc->soc.gpio), "sysbus-irq", AST_GPIO_IRQ_X0_NUM,
+    qdev_connect_gpio_out_named(DEVICE(&bmc->soc.gpio), "X", 0,
                                 qdev_get_gpio_in_named(DEVICE(spi_gpio), "SPI_CS_in", 0));
-    qdev_connect_gpio_out_named(DEVICE(&bmc->soc.gpio), "sysbus-irq", AST_GPIO_IRQ_X3_NUM,
+    qdev_connect_gpio_out_named(DEVICE(&bmc->soc.gpio), "X", 3,
                                 qdev_get_gpio_in_named(DEVICE(spi_gpio), "SPI_CLK", 0));
     object_property_set_bool(OBJECT(spi_gpio->aspeed_gpio), "gpioX5", true, &error_fatal);
 
