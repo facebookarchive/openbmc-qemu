@@ -828,7 +828,10 @@ static void aspeed_gpio_realize(DeviceState *dev, Error **errp)
             if (skip >> j & 1) {
                 continue;
             }
-            sysbus_init_irq(sbd, &s->gpios[i][j]);
+
+            int group_idx = j / GPIOS_PER_GROUP;
+            const char *group = &props->group_label[group_idx][0];
+            qdev_init_gpio_out_named(DEVICE(sbd), &s->gpios[i][j], group, 1);
         }
     }
 
